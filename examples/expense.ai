@@ -1,0 +1,13 @@
+-- Expense report processor
+-- Extracts structured data from receipt text and flags policy violations
+
+DEFINE expense:
+  merchant    TEXT
+  amount      MONEY
+  category    ONE OF [travel, meals, equipment, software, office]
+
+FROM receipts.csv
+EXTRACT expense
+FLAG WHEN amount OVER 500
+FLAG WHEN category IS travel AND amount OVER 200
+OUTPUT expenses.json

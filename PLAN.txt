@@ -1,0 +1,62 @@
+AI DSL - Roadmap
+================
+
+POC Status (Complete)
+---------------------
+- Working parser, compiler, and runtime
+- 14-line .ai file produces validated, schema-constrained, auditable JSON
+- Mock mode (regex) and LLM mode (GitHub Models API)
+- Schema types: TEXT, MONEY, NUMBER, YES/NO, ONE OF (enum)
+- Deterministic FLAG rules with audit trail
+- Core thesis demonstrated: structure beats freeform prompts for consistency
+
+Phase 1 — Make the Language Real
+---------------------------------
+- More verbs: CLASSIFY, SUMMARIZE, DRAFT, CHECK
+  - Each verb gets compiler-chosen inference params (temp, seed, top_p)
+  - Precision verbs (EXTRACT, CHECK) -> temp 0, fixed seed
+  - Creative verbs (DRAFT) -> higher temperature
+- SET block for global config (model, temperature) power users can override
+- Compile-time validation before any LLM call:
+  - Catch typos in enum values
+  - Bad thresholds
+  - Missing schemas
+  - Helpful error messages ("line 7: 'transportaton' not in category list")
+- JSON schema output constraint passed to LLM for even tighter consistency
+
+Phase 2 — More Sources and Sinks
+----------------------------------
+- FROM supports: CSV, JSON, Excel, API endpoints
+- OUTPUT supports: CSV, Excel, JSON, database
+- NOTIFY verb: email, Slack, webhook
+
+Phase 3 — The Comparison Demo
+-------------------------------
+- Side-by-side: same task in ChatGPT vs DSL
+- Screenshot ChatGPT inconsistency across 5 runs
+- Show DSL producing identical output every time
+- This becomes the pitch deck and landing page
+
+Phase 4 — Multi-Step and HITL
+-------------------------------
+- Chain agents: output of one .ai file feeds into another
+- REVIEW BY as a real blocking gate with simple web UI
+- State persistence so workflows can pause/resume
+
+Phase 5 — Product Validation
+------------------------------
+- Put comparison demo in front of 10 finance/ops people
+- Key questions:
+  - Do they get it?
+  - Do they try to modify the .ai file?
+  - What verbs do they reach for that don't exist?
+- Feedback drives what to build next
+
+Don't Build (Yet)
+------------------
+- Visual editor
+- Cloud runtime
+- Multiple LLM provider abstraction layer
+
+Keep it: one file in, structured JSON out, runs locally.
+Scope expands only when real users give signal.
