@@ -35,9 +35,9 @@ def expense_program(expense_ai) -> Program:
 
 
 @pytest.fixture()
-def expense_plan(expense_program) -> ExecutionPlan:
+def expense_plan(expense_program, tmp_path) -> ExecutionPlan:
     """Compile the standard expense program into an ExecutionPlan."""
-    return compile_program(expense_program)
+    return compile_program(expense_program, base_dir=str(tmp_path))
 
 
 @pytest.fixture()

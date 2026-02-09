@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+from pathlib import Path
 
 from .parser import Condition, FieldDef, FlagRule, Program, Schema
 
@@ -72,21 +73,40 @@ class ExecutionPlan:
     verb: str = "EXTRACT"  # EXTRACT or CLASSIFY
 
 
-def compile_program(program: Program) -> ExecutionPlan:
+def compile_program(program: Program, base_dir: str = ".") -> ExecutionPlan:
     if program.classify:
-        return _compile_classify(program)
-    return _compile_extract(program)
+        return _compile_classify(program, base_dir)
+    return _compile_extract(program, base_dir)
 
 
-def _compile_extract(program: Program) -> ExecutionPlan:
+def _load_prompt_file(name: str, base_dir: str) -> str:
+    """Load a .prompt file from prompts/ folder relative to base_dir."""
+    prompt_path = Path(base_dir) / "prompts" / f"{name}.prompt"
+    if not prompt_path.exists():
+        raise FileNotFoundError(
+            f"Prompt file not found: {prompt_path}\n"
+            f"  Create prompts/{name}.prompt alongside your .ai file"
+        )
+    return prompt_path.read_text(encoding="utf-8").strip()
+
+
+def _compile_extract(program: Program, base_dir: str) -> ExecutionPlan:
     schema = program.schemas.get(program.extract_target)
     if not schema:
         raise ValueError(f"Schema '{program.extract_target}' not defined")
 
-    prompt_lines = [
+    prompt_lines: list[str] = []
+
+    # Prepend WITH context if provided
+    if program.prompt_name:
+        context = _load_prompt_file(program.prompt_name, base_dir)
+        prompt_lines.append(context)
+        prompt_lines.append("")
+
+    prompt_lines.extend([
         "Extract the following fields from the input text.",
         "Return a JSON object with EXACTLY these fields:\n",
-    ]
+    ])
 
     json_properties: dict = {}
     required: list[str] = []
@@ -131,11 +151,19 @@ def _compile_extract(program: Program) -> ExecutionPlan:
     )
 
 
-def _compile_classify(program: Program) -> ExecutionPlan:
+def _compile_classify(program: Program, base_dir: str) -> ExecutionPlan:
     classify = program.classify
     values_str = ", ".join(classify.categories)
 
-    prompt_lines = [
+    prompt_lines: list[str] = []
+
+    # Prepend WITH context if provided
+    if program.prompt_name:
+        context = _load_prompt_file(program.prompt_name, base_dir)
+        prompt_lines.append(context)
+        prompt_lines.append("")
+
+    prompt_lines.extend([
         "Classify the input text into exactly one category.",
         f"Categories: {values_str}",
         "",
@@ -143,7 +171,7 @@ def _compile_classify(program: Program) -> ExecutionPlan:
         f"whose value is exactly one of: {values_str}",
         "",
         "Return ONLY a valid JSON object. No markdown, no explanation.",
-    ]
+    ])
 
     json_schema = {
         "type": "object",

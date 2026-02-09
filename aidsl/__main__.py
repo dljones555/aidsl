@@ -26,11 +26,13 @@ def main():
     print(f"\n  PARSE   {filepath}")
     program = parse(filepath)
 
-    print(f"  COMPILE {program.extract_target} -> {len(program.flags)} flag rules")
-    plan = compile_program(program)
+    base_dir = str(Path(filepath).parent)
+
+    print(f"  COMPILE {program.extract_target or program.classify.field_name if program.classify else '?'} -> {len(program.flags)} flag rules")
+    plan = compile_program(program, base_dir=base_dir)
 
     print(f"  RUN     {plan.source} -> {plan.output}\n")
-    run(plan, base_dir=str(Path(filepath).parent))
+    run(plan, base_dir=base_dir)
 
 
 if __name__ == "__main__":

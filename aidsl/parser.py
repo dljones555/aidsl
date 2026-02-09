@@ -42,6 +42,7 @@ class Program:
     source: str = ""
     extract_target: str = ""
     classify: ClassifyDef | None = None
+    prompt_name: str = ""  # WITH <name> — references a .prompt file
     flags: list[FlagRule] = field(default_factory=list)
     output: str = ""
 
@@ -99,9 +100,18 @@ def parse(filepath: str) -> Program:
         if stripped.startswith("FROM "):
             program.source = stripped[5:].strip()
         elif stripped.startswith("EXTRACT "):
-            program.extract_target = stripped[8:].strip()
+            target, with_name = _split_with(stripped[8:])
+            program.extract_target = target
+            if with_name:
+                program.prompt_name = with_name
         elif stripped.startswith("CLASSIFY "):
             program.classify = _parse_classify(stripped)
+            # Check for WITH on the CLASSIFY line
+            with_match = re.search(r"\bWITH\s+(\w+)\s*$", stripped)
+            if with_match:
+                program.prompt_name = with_match.group(1)
+        elif stripped.startswith("WITH "):
+            program.prompt_name = stripped[5:].strip()
         elif stripped.startswith("FLAG WHEN "):
             program.flags.append(_parse_flag_rule(stripped[10:]))
         elif stripped.startswith("OUTPUT "):
@@ -110,6 +120,14 @@ def parse(filepath: str) -> Program:
         i += 1
 
     return program
+
+
+def _split_with(text: str) -> tuple[str, str]:
+    """Split 'expense WITH context_name' into ('expense', 'context_name')."""
+    match = re.match(r"(\w+)\s+WITH\s+(\w+)", text.strip())
+    if match:
+        return match.group(1), match.group(2)
+    return text.strip(), ""
 
 
 def _parse_classify(text: str) -> ClassifyDef:

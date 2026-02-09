@@ -3,5 +3,6 @@
 
 FROM tickets.csv
 CLASSIFY type INTO [policy, claim, inquiry, complaint]
+  WITH insurance_context
 FLAG WHEN type IS complaint
 OUTPUT classified.json
