@@ -1,0 +1,7 @@
+-- Support ticket classifier
+-- Routes incoming tickets to the right team
+
+FROM tickets.csv
+CLASSIFY type INTO [policy, claim, inquiry, complaint]
+FLAG WHEN type IS complaint
+OUTPUT classified.json

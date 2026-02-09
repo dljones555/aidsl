@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
-from .parser import Program, Schema, FlagRule, Condition
+from .parser import Condition, FieldDef, FlagRule, Program, Schema
 
 
 @dataclass
@@ -69,14 +69,20 @@ class ExecutionPlan:
     flag_evaluator: FlagEvaluator
     output: str
     schema: Schema
+    verb: str = "EXTRACT"  # EXTRACT or CLASSIFY
 
 
 def compile_program(program: Program) -> ExecutionPlan:
+    if program.classify:
+        return _compile_classify(program)
+    return _compile_extract(program)
+
+
+def _compile_extract(program: Program) -> ExecutionPlan:
     schema = program.schemas.get(program.extract_target)
     if not schema:
         raise ValueError(f"Schema '{program.extract_target}' not defined")
 
-    # Build constrained extraction prompt from schema
     prompt_lines = [
         "Extract the following fields from the input text.",
         "Return a JSON object with EXACTLY these fields:\n",
@@ -121,4 +127,49 @@ def compile_program(program: Program) -> ExecutionPlan:
         flag_evaluator=FlagEvaluator(rules=program.flags),
         output=program.output,
         schema=schema,
+        verb="EXTRACT",
+    )
+
+
+def _compile_classify(program: Program) -> ExecutionPlan:
+    classify = program.classify
+    values_str = ", ".join(classify.categories)
+
+    prompt_lines = [
+        "Classify the input text into exactly one category.",
+        f"Categories: {values_str}",
+        "",
+        f'Return a JSON object with one field "{classify.field_name}" '
+        f"whose value is exactly one of: {values_str}",
+        "",
+        "Return ONLY a valid JSON object. No markdown, no explanation.",
+    ]
+
+    json_schema = {
+        "type": "object",
+        "properties": {
+            classify.field_name: {
+                "type": "string",
+                "enum": classify.categories,
+            }
+        },
+        "required": [classify.field_name],
+    }
+
+    # Build a synthetic schema so the rest of the pipeline works
+    schema = Schema(
+        name="_classify",
+        fields=[FieldDef(classify.field_name, "ENUM", classify.categories)],
+    )
+
+    return ExecutionPlan(
+        source=program.source,
+        extraction_prompt=ExtractionPrompt(
+            system="\n".join(prompt_lines),
+            json_schema=json_schema,
+        ),
+        flag_evaluator=FlagEvaluator(rules=program.flags),
+        output=program.output,
+        schema=schema,
+        verb="CLASSIFY",
     )

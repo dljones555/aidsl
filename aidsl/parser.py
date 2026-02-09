@@ -31,10 +31,17 @@ class FlagRule:
 
 
 @dataclass
+class ClassifyDef:
+    field_name: str  # output field name for the classification result
+    categories: list[str] = field(default_factory=list)
+
+
+@dataclass
 class Program:
     schemas: dict[str, Schema] = field(default_factory=dict)
     source: str = ""
     extract_target: str = ""
+    classify: ClassifyDef | None = None
     flags: list[FlagRule] = field(default_factory=list)
     output: str = ""
 
@@ -93,6 +100,8 @@ def parse(filepath: str) -> Program:
             program.source = stripped[5:].strip()
         elif stripped.startswith("EXTRACT "):
             program.extract_target = stripped[8:].strip()
+        elif stripped.startswith("CLASSIFY "):
+            program.classify = _parse_classify(stripped)
         elif stripped.startswith("FLAG WHEN "):
             program.flags.append(_parse_flag_rule(stripped[10:]))
         elif stripped.startswith("OUTPUT "):
@@ -101,6 +110,24 @@ def parse(filepath: str) -> Program:
         i += 1
 
     return program
+
+
+def _parse_classify(text: str) -> ClassifyDef:
+    # CLASSIFY INTO [a, b, c]
+    # CLASSIFY <field_name> INTO [a, b, c]
+    enum_match = re.search(r"\[([^\]]+)\]", text)
+    categories = []
+    if enum_match:
+        categories = [v.strip() for v in enum_match.group(1).split(",")]
+
+    # Check for optional field name: CLASSIFY type INTO [...]
+    into_match = re.match(r"CLASSIFY\s+(\w+)\s+INTO\s+", text)
+    if into_match and into_match.group(1) != "INTO":
+        field_name = into_match.group(1)
+    else:
+        field_name = "classification"
+
+    return ClassifyDef(field_name=field_name, categories=categories)
 
 
 def _parse_flag_rule(text: str) -> FlagRule:
