@@ -1,0 +1,8 @@
+INPUT: Uber ride to airport, $47.50
+OUTPUT: {"merchant": "Uber", "amount": 47.50, "category": "travel"}
+
+INPUT: MacBook Pro from Apple Store, $2499.00
+OUTPUT: {"merchant": "Apple Store", "amount": 2499.00, "category": "equipment"}
+
+INPUT: Team lunch at Chipotle, $67.80
+OUTPUT: {"merchant": "Chipotle", "amount": 67.80, "category": "meals"}

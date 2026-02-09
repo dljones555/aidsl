@@ -83,6 +83,14 @@ Separates tone/wording (content person) from structure/rules (business person).
 DRAFT summary WITH executive_brief
 ```
 
+**USE** — Reference a named examples file from the examples/ folder.
+Few-shot learning: show the LLM input/output pairs so it mimics the pattern.
+More reliable than describing what you want — demonstrate it instead.
+```
+EXTRACT expense USE expense_samples
+CLASSIFY type INTO [a, b] USE ticket_samples
+```
+
 **SET** — Override default inference parameters. Power user feature.
 Most users never touch this. The compiler picks smart defaults per verb.
 ```
@@ -116,6 +124,22 @@ Named `.prompt` files in a `prompts/` folder. Referenced by name with `WITH`.
 - `.prompt` file — owns tone, wording, instructions (content person)
 
 Both are plain text, version controlled, diffable, auditable.
+
+## Examples Library
+
+Named `.examples` files in an `examples/` folder. Referenced by name with `USE`.
+
+Format — plain text `INPUT:/OUTPUT:` pairs, blank line between:
+```
+INPUT: Uber ride to airport, $47.50
+OUTPUT: {"merchant": "Uber", "amount": 47.50, "category": "travel"}
+
+INPUT: MacBook Pro from Apple Store, $2499.00
+OUTPUT: {"merchant": "Apple Store", "amount": 2499.00, "category": "equipment"}
+```
+
+Few-shot examples are injected into the system prompt before the user's input.
+The LLM sees the pattern and follows it — more effective than instructions alone.
 
 ## Design Rules for New Verbs
 

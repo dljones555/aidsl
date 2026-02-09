@@ -7,7 +7,7 @@ DEFINE expense:
   category    ONE OF [travel, meals, equipment, software, office]
 
 FROM receipts.csv
-EXTRACT expense
+EXTRACT expense USE expense_samples
 FLAG WHEN amount OVER 500
 FLAG WHEN category IS travel AND amount OVER 200
 OUTPUT expenses.json

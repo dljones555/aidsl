@@ -43,6 +43,7 @@ class Program:
     extract_target: str = ""
     classify: ClassifyDef | None = None
     prompt_name: str = ""  # WITH <name> — references a .prompt file
+    examples_name: str = ""  # USE <name> — references a .examples file
     flags: list[FlagRule] = field(default_factory=list)
     output: str = ""
 
@@ -100,18 +101,25 @@ def parse(filepath: str) -> Program:
         if stripped.startswith("FROM "):
             program.source = stripped[5:].strip()
         elif stripped.startswith("EXTRACT "):
-            target, with_name = _split_with(stripped[8:])
+            target, with_name, use_name = _split_modifiers(stripped[8:])
             program.extract_target = target
             if with_name:
                 program.prompt_name = with_name
+            if use_name:
+                program.examples_name = use_name
         elif stripped.startswith("CLASSIFY "):
             program.classify = _parse_classify(stripped)
-            # Check for WITH on the CLASSIFY line
-            with_match = re.search(r"\bWITH\s+(\w+)\s*$", stripped)
+            # Check for WITH and USE on the CLASSIFY line
+            with_match = re.search(r"\bWITH\s+(\w+)", stripped)
             if with_match:
                 program.prompt_name = with_match.group(1)
+            use_match = re.search(r"\bUSE\s+(\w+)", stripped)
+            if use_match:
+                program.examples_name = use_match.group(1)
         elif stripped.startswith("WITH "):
             program.prompt_name = stripped[5:].strip()
+        elif stripped.startswith("USE "):
+            program.examples_name = stripped[4:].strip()
         elif stripped.startswith("FLAG WHEN "):
             program.flags.append(_parse_flag_rule(stripped[10:]))
         elif stripped.startswith("OUTPUT "):
@@ -122,12 +130,30 @@ def parse(filepath: str) -> Program:
     return program
 
 
-def _split_with(text: str) -> tuple[str, str]:
-    """Split 'expense WITH context_name' into ('expense', 'context_name')."""
-    match = re.match(r"(\w+)\s+WITH\s+(\w+)", text.strip())
-    if match:
-        return match.group(1), match.group(2)
-    return text.strip(), ""
+def _split_modifiers(text: str) -> tuple[str, str, str]:
+    """Split 'expense WITH ctx USE ex' into ('expense', 'ctx', 'ex').
+
+    Supports WITH and USE in any order on the same line.
+    Returns (target, with_name, use_name).
+    """
+    text = text.strip()
+
+    with_name = ""
+    use_name = ""
+
+    with_match = re.search(r"\bWITH\s+(\w+)", text)
+    if with_match:
+        with_name = with_match.group(1)
+
+    use_match = re.search(r"\bUSE\s+(\w+)", text)
+    if use_match:
+        use_name = use_match.group(1)
+
+    # Target is the first word before any modifier keyword
+    target_match = re.match(r"(\w+)", text)
+    target = target_match.group(1) if target_match else text
+
+    return target, with_name, use_name
 
 
 def _parse_classify(text: str) -> ClassifyDef:

@@ -1,0 +1,11 @@
+INPUT: I need to update my home address on my auto policy #AP-12345
+OUTPUT: {"type": "policy"}
+
+INPUT: My car was hit in a parking lot yesterday, need to file a claim
+OUTPUT: {"type": "claim"}
+
+INPUT: What types of coverage do you offer for rental properties?
+OUTPUT: {"type": "inquiry"}
+
+INPUT: I've been waiting 3 weeks for my claim to be processed, this is unacceptable
+OUTPUT: {"type": "complaint"}

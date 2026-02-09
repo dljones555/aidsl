@@ -90,6 +90,59 @@ def _load_prompt_file(name: str, base_dir: str) -> str:
     return prompt_path.read_text(encoding="utf-8").strip()
 
 
+def _load_examples_file(name: str, base_dir: str) -> list[tuple[str, str]]:
+    """Load a .examples file from examples/ folder relative to base_dir.
+
+    Format:
+        INPUT: some text here
+        OUTPUT: {"field": "value"}
+
+        INPUT: another example
+        OUTPUT: {"field": "other"}
+
+    Returns list of (input, output) string pairs.
+    """
+    examples_path = Path(base_dir) / "examples" / f"{name}.examples"
+    if not examples_path.exists():
+        raise FileNotFoundError(
+            f"Examples file not found: {examples_path}\n"
+            f"  Create examples/{name}.examples alongside your .ai file"
+        )
+    text = examples_path.read_text(encoding="utf-8").strip()
+    pairs: list[tuple[str, str]] = []
+    current_input = ""
+    current_output = ""
+
+    for line in text.splitlines():
+        line = line.strip()
+        if line.startswith("INPUT:"):
+            # Save previous pair if we have one
+            if current_input and current_output:
+                pairs.append((current_input.strip(), current_output.strip()))
+            current_input = line[6:].strip()
+            current_output = ""
+        elif line.startswith("OUTPUT:"):
+            current_output = line[7:].strip()
+
+    # Don't forget the last pair
+    if current_input and current_output:
+        pairs.append((current_input.strip(), current_output.strip()))
+
+    return pairs
+
+
+def _format_examples(pairs: list[tuple[str, str]]) -> str:
+    """Format example pairs into prompt text for few-shot learning."""
+    lines = ["Here are some examples:", ""]
+    for i, (inp, out) in enumerate(pairs, 1):
+        lines.append(f"Example {i}:")
+        lines.append(f"  Input: {inp}")
+        lines.append(f"  Output: {out}")
+        lines.append("")
+    lines.append("Now process the following input the same way.")
+    return "\n".join(lines)
+
+
 def _compile_extract(program: Program, base_dir: str) -> ExecutionPlan:
     schema = program.schemas.get(program.extract_target)
     if not schema:
@@ -130,6 +183,13 @@ def _compile_extract(program: Program, base_dir: str) -> ExecutionPlan:
             prompt_lines.append(f"- {f.name}: MUST be exactly one of: {values_str}")
             json_properties[f.name] = {"type": "string", "enum": f.enum_values}
 
+    # Append few-shot examples if USE provided
+    if program.examples_name:
+        pairs = _load_examples_file(program.examples_name, base_dir)
+        if pairs:
+            prompt_lines.append("")
+            prompt_lines.append(_format_examples(pairs))
+
     prompt_lines.append("\nReturn ONLY a valid JSON object. No markdown, no explanation.")
 
     json_schema = {
@@ -169,6 +229,16 @@ def _compile_classify(program: Program, base_dir: str) -> ExecutionPlan:
         "",
         f'Return a JSON object with one field "{classify.field_name}" '
         f"whose value is exactly one of: {values_str}",
+    ])
+
+    # Append few-shot examples if USE provided
+    if program.examples_name:
+        pairs = _load_examples_file(program.examples_name, base_dir)
+        if pairs:
+            prompt_lines.append("")
+            prompt_lines.append(_format_examples(pairs))
+
+    prompt_lines.extend([
         "",
         "Return ONLY a valid JSON object. No markdown, no explanation.",
     ])
