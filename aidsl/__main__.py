@@ -10,15 +10,14 @@ from .runtime import run
 
 def main():
     if len(sys.argv) < 3 or sys.argv[1] != "run":
-        print("Usage: aidsl run <file.ai> [--mock]")
+        print("Usage: aidsl run <file.ai>")
         print()
-        print("  --mock   Run with regex extraction (no API key needed)")
+        print("Example: uv run python -m aidsl run examples/expense.ai")
         print()
-        print("Example: uv run python -m aidsl run examples/expense.ai --mock")
+        print("Requires GITHUB_TOKEN env var (GitHub PAT with models:read)")
         sys.exit(1)
 
     filepath = sys.argv[2]
-    mock = "--mock" in sys.argv
 
     if not Path(filepath).exists():
         print(f"File not found: {filepath}")
@@ -31,7 +30,7 @@ def main():
     plan = compile_program(program)
 
     print(f"  RUN     {plan.source} -> {plan.output}\n")
-    run(plan, base_dir=str(Path(filepath).parent), mock=mock)
+    run(plan, base_dir=str(Path(filepath).parent))
 
 
 if __name__ == "__main__":

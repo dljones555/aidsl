@@ -16,18 +16,23 @@ Phase 1 — Make the Language Real (Days 1-2)
   - Each verb gets compiler-chosen inference params (temp, seed, top_p)
   - Precision verbs (EXTRACT, CLASSIFY) -> temp 0, fixed seed
   - Creative verbs (DRAFT) -> higher temperature
+
 - Nested/referenced types in DEFINE:
   - One schema references another: items LIST OF line_item
   - Enables structured extraction of complex documents
   - Use cases: invoices (header + line items), resumes (contact + jobs
     + education), purchase orders (vendor + items)
-- SET block for global config (model, temperature) power users can override
+
+- SET block for global config (model, temperature, top_p, seed) power users can override
+
 - Compile-time validation before any LLM call:
   - Catch typos in enum values
   - Bad thresholds
   - Missing schemas
   - Helpful error messages ("line 7: 'transportaton' not in category list")
+
 - JSON schema output constraint passed to LLM for even tighter consistency
+
 - Prompt library:
   - Named .prompt files in a prompts/ folder
   - Referenced by name in DSL: DRAFT email WITH customer_response

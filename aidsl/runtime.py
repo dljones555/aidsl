@@ -3,8 +3,8 @@ from __future__ import annotations
 import csv
 import json
 import os
-import re
 import sys
+import time
 from pathlib import Path
 
 import httpx
@@ -16,7 +16,13 @@ _GITHUB_MODELS_URL = "https://models.github.ai/inference/chat/completions"
 _DEFAULT_MODEL = "openai/gpt-4.1-mini"
 
 
-def run(plan: ExecutionPlan, base_dir: str = ".", mock: bool = False) -> list[dict]:
+def run(plan: ExecutionPlan, base_dir: str = ".") -> list[dict]:
+    token = os.environ.get("GITHUB_TOKEN", "")
+    model = os.environ.get("AIDSL_MODEL", _DEFAULT_MODEL)
+    if not token:
+        print("  ERROR: Set GITHUB_TOKEN env var (GitHub PAT with models:read)")
+        sys.exit(1)
+
     source_path = Path(base_dir) / plan.source
     if not source_path.exists():
         print(f"  ERROR: Source file not found: {source_path}")
@@ -28,20 +34,9 @@ def run(plan: ExecutionPlan, base_dir: str = ".", mock: bool = False) -> list[di
     print(f"  READ {len(rows)} rows from {plan.source}")
     print(f"  SCHEMA: {plan.schema.name} ({len(plan.schema.fields)} fields)")
     print(f"  FLAGS: {len(plan.flag_evaluator.rules)} rules")
+    print(f"  MODEL: {model}\n")
 
-    if mock:
-        print(f"  MODE: mock (regex extraction, no LLM)\n")
-        extractor = _extract_mock
-    else:
-        token = os.environ.get("GITHUB_TOKEN", "")
-        model = os.environ.get("AIDSL_MODEL", _DEFAULT_MODEL)
-        if not token:
-            print("  ERROR: Set GITHUB_TOKEN env var (GitHub PAT with models:read)")
-            print("         Or use --mock to run without an API key")
-            sys.exit(1)
-        print(f"  MODE: llm ({model})\n")
-        extractor = _make_llm_extractor(token, model)
-
+    extractor = _make_llm_extractor(token, model)
     results = []
 
     for i, row in enumerate(rows):
@@ -65,7 +60,7 @@ def run(plan: ExecutionPlan, base_dir: str = ".", mock: bool = False) -> list[di
 
             results.append(record)
         else:
-            print(f"           FAILED")
+            print("           FAILED")
             results.append({"_source": text, "_error": "extraction failed"})
 
     # Write output
@@ -80,75 +75,6 @@ def run(plan: ExecutionPlan, base_dir: str = ".", mock: bool = False) -> list[di
     print(f"  SUMMARY: {clean} clean | {flagged} flagged | {errors} errors")
 
     return results
-
-
-# ---------------------------------------------------------------------------
-# Mock extractor — regex-based, no API key needed, proves the full pipeline
-# ---------------------------------------------------------------------------
-
-# Keywords that map to schema categories
-_CATEGORY_KEYWORDS: dict[str, list[str]] = {
-    "travel": ["uber", "lyft", "taxi", "flight", "delta", "united", "airline", "hotel", "marriott", "hilton", "airbnb"],
-    "meals": ["lunch", "dinner", "breakfast", "chipotle", "starbucks", "coffee", "restaurant", "food", "pastries"],
-    "equipment": ["macbook", "laptop", "monitor", "apple store", "keyboard", "mouse", "ipad", "phone"],
-    "software": ["github", "subscription", "license", "saas", "slack", "notion", "jira"],
-    "office": ["staples", "paper", "toner", "office depot", "supplies", "pens"],
-}
-
-
-def _extract_mock(plan: ExecutionPlan, text: str) -> dict | None:
-    record: dict = {}
-    text_lower = text.lower()
-
-    for f in plan.schema.fields:
-        if f.type == "TEXT":
-            # Extract merchant: first recognizable proper noun / brand
-            record[f.name] = _guess_merchant(text)
-        elif f.type == "MONEY":
-            # Extract dollar amount
-            match = re.search(r"\$\s*([\d,]+\.?\d+)", text)
-            if match:
-                record[f.name] = float(match.group(1).replace(",", ""))
-            else:
-                match = re.search(r"([\d,]+\.\d{2})", text)
-                record[f.name] = float(match.group(1).replace(",", "")) if match else 0.0
-        elif f.type == "ENUM":
-            # Match against enum values using keyword lists
-            record[f.name] = _match_category(text_lower, f.enum_values)
-        elif f.type == "BOOL":
-            record[f.name] = False
-        elif f.type == "NUMBER":
-            match = re.search(r"(\d+\.?\d*)", text)
-            record[f.name] = float(match.group(1)) if match else 0
-
-    # Validate enum constraints
-    if not _validate(record, plan):
-        return None
-
-    return record
-
-
-def _guess_merchant(text: str) -> str:
-    brands = [
-        "Uber", "Lyft", "Chipotle", "Apple Store", "GitHub", "Marriott",
-        "Staples", "Delta", "Starbucks", "Amazon", "Office Depot", "Hilton",
-    ]
-    text_lower = text.lower()
-    for brand in brands:
-        if brand.lower() in text_lower:
-            return brand
-    # Fallback: first capitalized word
-    match = re.search(r"\b([A-Z][a-z]+(?:\s[A-Z][a-z]+)*)", text)
-    return match.group(1) if match else "Unknown"
-
-
-def _match_category(text_lower: str, allowed: list[str]) -> str:
-    for category, keywords in _CATEGORY_KEYWORDS.items():
-        if category in allowed:
-            for kw in keywords:
-                if kw in text_lower:
-                    return category
-    return allowed[0] if allowed else "other"
 
 
 # ---------------------------------------------------------------------------
@@ -179,8 +105,7 @@ def _make_llm_extractor(token: str, model: str):
                 if resp.status_code != 200:
                     print(f"           HTTP {resp.status_code}: {resp.text[:120]}")
                     if attempt < retries:
-                        import time
-                        time.sleep(2 ** attempt)  # backoff: 1s, 2s
+                        time.sleep(2 ** attempt)
                         continue
                     return None
 

@@ -1,0 +1,107 @@
+# Sprint Tasks
+
+Each task is scoped to one focused session. Model recommendation in brackets.
+
+## Day 0 — Foundation (before building features)
+
+- [ ] **T01** [Sonnet] Remove mock extractor from runtime.py
+  - Delete _extract_mock, _guess_merchant, _match_category, _CATEGORY_KEYWORDS
+  - Remove --mock flag from __main__.py
+  - Remove `import re` if no longer needed
+  - Clean up run() to only have the LLM path
+
+- [ ] **T02** [Sonnet] Add pytest infrastructure
+  - Add pytest and ruff to pyproject.toml dev dependencies
+  - Create tests/ directory
+  - Create tests/conftest.py with shared fixtures:
+    - mock_llm_response: patches httpx.Client.post to return controlled JSON
+    - sample_program: returns a parsed Program for the expense schema
+    - sample_plan: returns a compiled ExecutionPlan
+    - tmp_csv: writes a temp CSV and returns the path
+
+- [ ] **T03** [Sonnet] Write tests for existing code
+  - tests/test_parser.py: parse DEFINE, FROM, EXTRACT, FLAG WHEN, OUTPUT
+  - tests/test_compiler.py: prompt generation, JSON schema, enum constraints
+  - tests/test_flags.py: flag evaluator with OVER, UNDER, IS, AND/OR combos
+  - tests/test_validator.py: valid records, missing fields, bad enums, type coercion
+  - tests/test_runtime.py: full pipeline with mocked LLM returning good/bad JSON
+
+## Day 1 — Language: Verbs and Types
+
+- [ ] **T04** [Sonnet] Add CLASSIFY verb
+  - Parser: recognize CLASSIFY <field> INTO <schema> or similar
+  - Compiler: generate classification prompt with enum constraint
+  - Tests: parser, compiler output, end-to-end with mock
+
+- [ ] **T05** [Sonnet] Add DRAFT verb with prompt library
+  - Parser: recognize DRAFT <output_field> WITH <prompt_name>
+  - Load .prompt files from prompts/ folder relative to .ai file
+  - Compiler: inject prompt text into LLM system message
+  - Tests: prompt file loading, compiler output, missing prompt error
+
+- [ ] **T06** [Opus] Add nested/referenced types
+  - Parser: recognize LIST OF <other_type> and <type_name> as field type
+  - Compiler: generate nested JSON schema with $ref or inline
+  - Validator: recursively validate nested objects and lists
+  - Tests: invoice with line_items, validation of nested structures
+
+## Day 2 — Language: Config and Validation
+
+- [ ] **T07** [Sonnet] Add SET block
+  - Parser: recognize SET model, temperature, top_p, seed
+  - Compiler: pass settings through to ExecutionPlan
+  - Runtime: apply settings to LLM API calls
+  - Tests: SET overrides defaults, invalid values caught
+
+- [ ] **T08** [Sonnet] Add compile-time validation
+  - Check schema references exist (EXTRACT names a defined schema)
+  - Check FLAG WHEN fields exist in the schema
+  - Check enum values in FLAG conditions match schema enums
+  - Report errors with line numbers
+  - Tests: each validation error type
+
+- [ ] **T09** [Sonnet] Compiler-chosen inference params per verb
+  - EXTRACT, CLASSIFY: temp 0, fixed seed (precision)
+  - DRAFT: temp 0.7 (creative)
+  - SET block overrides these defaults
+  - Tests: verify params in execution plan per verb type
+
+## Day 3 — Sources and Sinks
+
+- [ ] **T10** [Sonnet] JSON input/output support
+  - FROM detects .json files, reads as list of records
+  - OUTPUT detects .json/.csv by extension, writes accordingly
+  - Tests: round-trip JSON, CSV output format
+
+- [ ] **T11** [Sonnet] One API source example
+  - FROM supports https:// URLs
+  - Parser: HEADER keyword for auth
+  - Runtime: httpx GET, parse JSON response as records
+  - Tests: mock httpx for the API call
+
+## Day 4 — Comparison Demo
+
+- [ ] **T12** [Sonnet] Build consistency comparison script
+  - Run same extraction 5x with raw prompt (no schema)
+  - Run same extraction 5x with DSL (schema-constrained)
+  - Output report: field-by-field consistency scores
+  - Show category drift, amount format drift, key name drift
+
+- [ ] **T13** [Sonnet] Create demo .ai files for other use cases
+  - Support ticket triage example
+  - Invoice extraction example (uses nested types)
+  - Shows breadth of the DSL
+
+## Day 5 — Polish
+
+- [ ] **T14** [Sonnet] Write README.md
+  - What it is, why it exists (the "calculator vs spreadsheet" pitch)
+  - Quick start: install, run expense example
+  - DSL syntax reference
+  - Examples
+
+- [ ] **T15** [Sonnet] End-to-end cleanup
+  - Run all tests, fix failures
+  - Lint and format
+  - Verify demo runs in one command
+  - Final push to GitHub
