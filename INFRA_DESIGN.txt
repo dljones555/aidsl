@@ -1,0 +1,65 @@
+AI DSL - Infrastructure Design: Agent Runner
+==============================================
+
+Overview
+--------
+Simplest effective runtime for running .ai files as automated agents.
+No AWS, no Azure, no queues, no event bus.
+The .ai file IS the job definition. The filesystem IS the queue.
+Cron IS the scheduler.
+
+Architecture
+------------
+A cron job and a folder.
+
+  /jobs
+    /expense-review
+      expense.ai              # the program
+      prompts/                 # named .prompt files
+      inbox/                   # drop CSVs/JSON here (trigger)
+      outbox/                  # results land here
+      archive/                 # processed inputs move here
+    /ticket-triage
+      triage.ai
+      prompts/
+      inbox/
+      outbox/
+      archive/
+    /invoice-processing
+      invoice.ai
+      prompts/
+      inbox/
+      outbox/
+      archive/
+
+How It Works
+------------
+1. Watcher script runs every N minutes (cron, Task Scheduler, GitHub Actions)
+2. Checks each job's inbox/ for new files
+3. If new file found, runs the .ai file against it
+4. Writes structured output to outbox/
+5. Moves processed input to archive/
+6. Logs every run for audit trail
+
+Where It Runs
+-------------
+- Local laptop with Task Scheduler (Windows) or cron (Mac/Linux)
+- $5/mo Linux VPS
+- Free-tier GitHub Actions on a schedule
+- Raspberry Pi in a closet
+
+Scaling Path (Only When Needed)
+-------------------------------
+- Multiple files per second       -> add SQLite queue
+- Need web UI for HITL reviews    -> add small Flask/FastAPI app
+- Multi-user                      -> add auth and job isolation
+- Enterprise                      -> then talk about cloud infra
+
+Why This Over Zapier/Power Automate
+------------------------------------
+- No vendor lock-in
+- No per-action pricing
+- .ai files are version controlled and auditable
+- Business rules are readable, not buried in a visual canvas
+- Runs anywhere, costs almost nothing
+- Scales up incrementally, not all-or-nothing

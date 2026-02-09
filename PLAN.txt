@@ -10,12 +10,17 @@ POC Status (Complete)
 - Deterministic FLAG rules with audit trail
 - Core thesis demonstrated: structure beats freeform prompts for consistency
 
-Phase 1 — Make the Language Real
----------------------------------
-- More verbs: CLASSIFY, SUMMARIZE, DRAFT, CHECK
+Phase 1 — Make the Language Real (Days 1-2)
+---------------------------------------------
+- New verbs: CLASSIFY, DRAFT
   - Each verb gets compiler-chosen inference params (temp, seed, top_p)
-  - Precision verbs (EXTRACT, CHECK) -> temp 0, fixed seed
+  - Precision verbs (EXTRACT, CLASSIFY) -> temp 0, fixed seed
   - Creative verbs (DRAFT) -> higher temperature
+- Nested/referenced types in DEFINE:
+  - One schema references another: items LIST OF line_item
+  - Enables structured extraction of complex documents
+  - Use cases: invoices (header + line items), resumes (contact + jobs
+    + education), purchase orders (vendor + items)
 - SET block for global config (model, temperature) power users can override
 - Compile-time validation before any LLM call:
   - Catch typos in enum values
@@ -23,19 +28,32 @@ Phase 1 — Make the Language Real
   - Missing schemas
   - Helpful error messages ("line 7: 'transportaton' not in category list")
 - JSON schema output constraint passed to LLM for even tighter consistency
+- Prompt library:
+  - Named .prompt files in a prompts/ folder
+  - Referenced by name in DSL: DRAFT email WITH customer_response
+  - .ai file owns structure/types/rules (business person)
+  - .prompt file owns tone/wording/instructions (content person)
+  - Versioned, diffable, reusable across multiple .ai files
+  - Enables A/B testing by swapping prompt names
 
-Phase 2 — More Sources and Sinks
-----------------------------------
-- FROM supports: CSV, JSON, Excel, API endpoints
-- OUTPUT supports: CSV, Excel, JSON, database
-- NOTIFY verb: email, Slack, webhook
+Phase 2 — Sources and Sinks (Day 3)
+-------------------------------------
+- FROM supports: CSV, JSON
+- FROM supports one API example (with HEADER for auth) as proof of concept
+- OUTPUT supports: CSV, JSON
 
-Phase 3 — The Comparison Demo
--------------------------------
+Phase 3 — The Comparison Demo (Day 4)
+---------------------------------------
 - Side-by-side: same task in ChatGPT vs DSL
-- Screenshot ChatGPT inconsistency across 5 runs
-- Show DSL producing identical output every time
+- Run same extraction 5x with raw prompts vs 5x with DSL
+- Output a consistency report showing the difference
 - This becomes the pitch deck and landing page
+
+Day 5 — Polish and Buffer
+---------------------------
+- Fix issues, clean up edge cases
+- Write a clear README with usage examples
+- End-to-end demo runs in one command
 
 Phase 4 — Multi-Step and HITL
 -------------------------------
@@ -52,11 +70,25 @@ Phase 5 — Product Validation
   - What verbs do they reach for that don't exist?
 - Feedback drives what to build next
 
+Backlog (Separate PBIs)
+------------------------
+- MCP server exposing DSL schemas as callable tools for external agents
+  - Each .ai file becomes an MCP tool other clients can call
+  - Separate from the prompt library (which is internal to the DSL)
+- Mojo/Modular as compiled runtime backend (when compiler matures, after PMF)
+- Simple agent runner: cron + folder (inbox/outbox/archive pattern)
+- NOTIFY verb: email, Slack, webhook
+- SUMMARIZE verb
+- CHECK verb (deterministic comparison against lookup tables/datasets)
+- Excel support (input and output)
+- Full API connector support (multiple endpoints, pagination, auth flows)
+- Database output (SQLite, Postgres)
+- Multiple LLM provider abstraction layer
+
 Don't Build (Yet)
 ------------------
 - Visual editor
 - Cloud runtime
-- Multiple LLM provider abstraction layer
 
 Keep it: one file in, structured JSON out, runs locally.
 Scope expands only when real users give signal.
