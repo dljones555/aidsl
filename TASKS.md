@@ -39,16 +39,28 @@ Each task is scoped to one focused session. Model recommendation in brackets.
   - Compiler: inject prompt text into LLM system message
   - Tests: prompt file loading, compiler output, missing prompt error
 
-- [ ] **T06** [Opus] Add nested/referenced types + folder-as-source
+- [ ] **T06a** [Opus] Add nested/referenced types
   - Parser: recognize LIST OF <other_type> and <type_name> as field type
-  - Parser: FROM supports directory path (e.g. FROM invoices/) — globs *.txt, each file = one record
   - Compiler: generate nested JSON schema with $ref or inline
   - Validator: recursively validate nested objects and lists
-  - Runtime: detect folder vs file in FROM, load each .txt as a row with text = file contents
-  - Example: invoices/ folder with one .txt per invoice (multi-line, realistic OCR/email output)
   - Example .ai file: DEFINE line_item + DEFINE invoice with LIST OF line_item
-  - Tests: nested schema parsing, folder source loading, invoice extraction with line_items
-  - Note: folder-as-source is prerequisite for invoice demo — CSV can't hold multi-line invoice text cleanly
+  - Tests: nested schema parsing, nested JSON schema generation, recursive validation
+
+- [ ] **T06b** [Sonnet] FROM folder source
+  - FROM supports directory path (e.g. FROM invoices/) — globs *.txt, each file = one record
+  - Runtime: detect folder vs file in FROM, load each .txt as a row with text = file contents
+  - Works with any verb, not just nested types
+  - Example: invoices/ folder with one .txt per invoice (multi-line, realistic OCR/email output)
+  - Tests: folder source loading, empty folder, mixed file types
+  - Note: combined with T06a, enables the full invoice extraction demo
+
+- [ ] **PBI-INBOX** Inbox/outbox/archive agent runner pattern
+  - FROM inbox/ → process files → move processed to archive/
+  - Write structured outputs to outbox/
+  - Error handling: failed files stay in inbox or go to outbox/errors/
+  - Ties into INFRA_DESIGN.txt (cron + folder pattern)
+  - Design needed: partial failure, retry semantics, file locking
+  - This is an ops/deployment feature, not a language feature — build after core DSL is solid
 
 - [x] **T05a** [Sonnet] WITH keyword + .prompt file loading ✓
 - [x] **T05b** [Sonnet] USE keyword + .examples file loading ✓
