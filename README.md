@@ -73,7 +73,7 @@ That's it. No Python. No YAML. No prompt engineering. The compiler handles:
               │                         │
      ┌────────▼────────┐    ┌──────────▼──────────┐
      │   LLM Runtime   │    │   Flag Evaluator    │
-     │  (AI judgment)   │    │ (deterministic rules)│
+     │  (AI judgment)  │    │(deterministic rules)│
      └────────┬────────┘    └──────────┬──────────┘
               │                         │
               └────────────┬────────────┘
