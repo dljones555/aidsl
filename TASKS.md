@@ -26,18 +26,32 @@ Each task is scoped to one focused session. Model recommendation in brackets.
   - tests/test_validator.py: valid records, missing fields, bad enums, type coercion
   - tests/test_runtime.py: full pipeline with mocked LLM returning good/bad JSON
 
-## Day 1 — Language: Verbs and Types
+## Day 1 — Language: Verbs and Prompt Library
 
 - [x] **T04** [Sonnet] Add CLASSIFY verb ✓
   - Parser: recognize CLASSIFY <field> INTO <schema> or similar
   - Compiler: generate classification prompt with enum constraint
   - Tests: parser, compiler output, end-to-end with mock
 
-- [x] **T05** [Sonnet] Add DRAFT verb with prompt library ✓ (split into T05a-c below)
+- [x] **T05** [Sonnet] Add DRAFT verb with prompt library ✓ (split into T05a-d below)
   - Parser: recognize DRAFT <output_field> WITH <prompt_name>
   - Load .prompt files from prompts/ folder relative to .ai file
   - Compiler: inject prompt text into LLM system message
   - Tests: prompt file loading, compiler output, missing prompt error
+
+- [x] **T05a** [Sonnet] WITH keyword + .prompt file loading ✓
+- [x] **T05b** [Sonnet] USE keyword + .examples file loading ✓
+- [x] **T05c** [Sonnet] DRAFT verb v1 (simple — append field to record) ✓
+
+- [x] **T05d** [Sonnet] DRAFT v2 — {field} placeholder substitution ✓
+  - Support {field} placeholders in .prompt templates, substituted from record before LLM call
+  - Hybrid approach: deterministic scaffolding (known fields) + creative generation (LLM)
+  - e.g. "Write a reply to this {type} from {name}, policy {policy_number}"
+  - Compiler substitutes known fields, LLM generates the creative parts
+  - Resolved prompt saved as _draft_prompt in output JSON for audit trail
+  - Remaining items moved to PBI-DRAFT-V3
+
+## Day 2 — Types, Sources, and Config
 
 - [ ] **T06a** [Opus] Add nested/referenced types
   - Parser: recognize LIST OF <other_type> and <type_name> as field type
@@ -53,34 +67,6 @@ Each task is scoped to one focused session. Model recommendation in brackets.
   - Example: invoices/ folder with one .txt per invoice (multi-line, realistic OCR/email output)
   - Tests: folder source loading, empty folder, mixed file types
   - Note: combined with T06a, enables the full invoice extraction demo
-
-- [ ] **PBI-INBOX** Inbox/outbox/archive agent runner pattern
-  - FROM inbox/ → process files → move processed to archive/
-  - Write structured outputs to outbox/
-  - Error handling: failed files stay in inbox or go to outbox/errors/
-  - Ties into INFRA_DESIGN.txt (cron + folder pattern)
-  - Design needed: partial failure, retry semantics, file locking
-  - This is an ops/deployment feature, not a language feature — build after core DSL is solid
-
-- [x] **T05a** [Sonnet] WITH keyword + .prompt file loading ✓
-- [x] **T05b** [Sonnet] USE keyword + .examples file loading ✓
-- [x] **T05c** [Sonnet] DRAFT verb v1 (simple — append field to record) ✓
-
-- [x] **T05d** [Sonnet] DRAFT v2 — {field} placeholder substitution ✓
-  - Support {field} placeholders in .prompt templates, substituted from record before LLM call
-  - Hybrid approach: deterministic scaffolding (known fields) + creative generation (LLM)
-  - e.g. "Write a reply to this {type} from {name}, policy {policy_number}"
-  - Compiler substitutes known fields, LLM generates the creative parts
-  - Resolved prompt saved as _draft_prompt in output JSON for audit trail
-  - Remaining items moved to PBI-DRAFT-V3
-
-- [ ] **PBI-DRAFT-V3** [Sonnet] DRAFT v3 — mail merge, output templates, creative temp
-  - If template is 100% placeholders with no creative prompt, skip LLM call (free mail merge)
-  - Support output templates for formatted responses (email headers, signatures, structure)
-  - Target use case: customer service email auto-replies, chatbot responses, form letters
-  - temp 0.7 creative mode (vs temp 0 for EXTRACT/CLASSIFY) — ties into T09
-
-## Day 2 — Language: Config and Validation
 
 - [ ] **T07** [Sonnet] Add SET block
   - Parser: recognize SET model, temperature, top_p, seed
@@ -101,7 +87,7 @@ Each task is scoped to one focused session. Model recommendation in brackets.
   - SET block overrides these defaults
   - Tests: verify params in execution plan per verb type
 
-## Day 3 — Sources and Sinks
+## Day 3 — Sources, Sinks, and Demos
 
 - [ ] **T10** [Sonnet] JSON input/output support
   - FROM detects .json files, reads as list of records
@@ -114,8 +100,6 @@ Each task is scoped to one focused session. Model recommendation in brackets.
   - Runtime: httpx GET, parse JSON response as records
   - Tests: mock httpx for the API call
 
-## Day 4 — Comparison Demo
-
 - [ ] **T12** [Sonnet] Build consistency comparison script
   - Run same extraction 5x with raw prompt (no schema)
   - Run same extraction 5x with DSL (schema-constrained)
@@ -127,7 +111,7 @@ Each task is scoped to one focused session. Model recommendation in brackets.
   - Invoice extraction example (uses nested types)
   - Shows breadth of the DSL
 
-## Day 5 — Polish
+## Day 4 — Polish
 
 - [x] **T14** [Sonnet] Write README.md ✓
   - What it is, why it exists (the "calculator vs spreadsheet" pitch)
@@ -140,3 +124,28 @@ Each task is scoped to one focused session. Model recommendation in brackets.
   - Lint and format
   - Verify demo runs in one command
   - Final push to GitHub
+
+---
+
+## Product Backlog (PBI)
+
+Items below are scoped but not scheduled. Pull into a sprint day when ready.
+
+- [ ] **PBI-DRAFT-V3** [Sonnet] DRAFT v3 — mail merge, output templates, creative temp
+  - If template is 100% placeholders with no creative prompt, skip LLM call (free mail merge)
+  - Support output templates for formatted responses (email headers, signatures, structure)
+  - Target use case: customer service email auto-replies, chatbot responses, form letters
+  - temp 0.7 creative mode (vs temp 0 for EXTRACT/CLASSIFY) — ties into T09
+
+- [ ] **PBI-INBOX** Inbox/outbox/archive agent runner pattern
+  - FROM inbox/ → process files → move processed to archive/
+  - Write structured outputs to outbox/
+  - Error handling: failed files stay in inbox or go to outbox/errors/
+  - Ties into INFRA_DESIGN.txt (cron + folder pattern)
+  - Design needed: partial failure, retry semantics, file locking
+  - This is an ops/deployment feature, not a language feature — build after core DSL is solid
+
+- [ ] **PBI-CASE-INSENSITIVE** Make DSL keywords case-insensitive
+  - Convention is uppercase but parser should accept lowercase/mixed case
+  - One file change (parser.py), ~15 touch points
+  - Use `upper = stripped.upper()` for keyword matching, preserve original case for values
