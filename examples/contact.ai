@@ -1,0 +1,19 @@
+-- Contact extractor with nested addresses
+-- Demonstrates type reference: address is reused for both mailing and postal
+
+DEFINE address:
+  street TEXT
+  city   TEXT
+  state  TEXT
+  zip    TEXT
+
+DEFINE contact:
+  name            TEXT
+  email           TEXT
+  phone           TEXT
+  mailing_address address
+  postal_address  address
+
+FROM contacts.csv
+EXTRACT contact
+OUTPUT contacts.json

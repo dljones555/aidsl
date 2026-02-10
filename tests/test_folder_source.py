@@ -5,7 +5,7 @@ from unittest.mock import MagicMock, patch
 
 from aidsl.parser import parse
 from aidsl.compiler import compile_program
-from aidsl.runtime import _load_source
+from aidsl.runtime import _load_source, _row_to_text
 
 
 # --- _load_source unit tests ---
@@ -81,6 +81,46 @@ def test_load_source_empty_folder(tmp_path):
     folder.mkdir()
     rows = _load_source(folder)
     assert rows == []
+
+
+# --- _row_to_text unit tests ---
+
+
+def test_row_to_text_with_text_column():
+    row = {"text": "Hello world", "other": "ignored"}
+    assert _row_to_text(row) == "Hello world"
+
+
+def test_row_to_text_standard_csv_columns():
+    row = {"name": "Jane", "email": "jane@x.com", "phone": "555-0100"}
+    result = _row_to_text(row)
+    parsed = json.loads(result)
+    assert parsed["name"] == "Jane"
+    assert parsed["email"] == "jane@x.com"
+    assert parsed["phone"] == "555-0100"
+
+
+def test_row_to_text_skips_internal_fields():
+    row = {"name": "Bob", "_filename": "f.txt", "_row": "3"}
+    result = _row_to_text(row)
+    parsed = json.loads(result)
+    assert parsed == {"name": "Bob"}
+
+
+def test_row_to_text_empty_row():
+    assert _row_to_text({}) == ""
+
+
+def test_load_source_standard_csv(tmp_path):
+    csv_file = tmp_path / "data.csv"
+    csv_file.write_text(
+        'name,email,amount\n"Jane","jane@x.com","500"\n"Bob","bob@x.com","200"\n'
+    )
+    rows = _load_source(csv_file)
+    assert len(rows) == 2
+    assert rows[0]["name"] == "Jane"
+    assert rows[0]["email"] == "jane@x.com"
+    assert rows[1]["name"] == "Bob"
 
 
 # --- Parser: FROM folder path ---

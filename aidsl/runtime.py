@@ -45,7 +45,7 @@ def run(plan: ExecutionPlan, base_dir: str = ".") -> list[dict]:
     results = []
 
     for i, row in enumerate(rows):
-        text = row.get("text", "")
+        text = _row_to_text(row)
         if not text:
             continue
         print(f"  [{i + 1}/{len(rows)}] EXTRACT: {text[:55]}...")
@@ -68,7 +68,7 @@ def run(plan: ExecutionPlan, base_dir: str = ".") -> list[dict]:
             flags = plan.flag_evaluator.evaluate(record)
             record["_flagged"] = len(flags) > 0
             record["_flag_reasons"] = flags
-            record["_source"] = text
+            record["_source"] = row.get("text", {k: v for k, v in row.items() if not k.startswith("_")})
 
             status = "FLAGGED" if flags else "OK"
             flag_info = f" ({', '.join(flags)})" if flags else ""
@@ -77,7 +77,7 @@ def run(plan: ExecutionPlan, base_dir: str = ".") -> list[dict]:
             results.append(record)
         else:
             print("           FAILED")
-            results.append({"_source": text, "_error": "extraction failed"})
+            results.append({"_source": row.get("text", {k: v for k, v in row.items() if not k.startswith("_")}), "_error": "extraction failed"})
 
     # Write output
     output_path = Path(base_dir) / plan.output
@@ -98,10 +98,22 @@ def run(plan: ExecutionPlan, base_dir: str = ".") -> list[dict]:
 # ---------------------------------------------------------------------------
 
 
+def _row_to_text(row: dict) -> str:
+    """Convert a row dict to text for the LLM.
+
+    If the row has a 'text' column, use it (unstructured source).
+    Otherwise, serialize all columns as JSON (standard CSV).
+    """
+    if "text" in row:
+        return row["text"]
+    clean = {k: v for k, v in row.items() if not k.startswith("_")}
+    return json.dumps(clean) if clean else ""
+
+
 def _load_source(source_path: Path) -> list[dict]:
     """Load input rows from a CSV file or a folder of files.
 
-    CSV: standard DictReader, expects a 'text' column.
+    CSV: standard DictReader — works with any column layout.
     Folder: reads all files (skipping hidden/dot files), each file becomes
             a row with 'text' = file contents, '_filename' = file name.
     """

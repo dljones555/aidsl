@@ -1,0 +1,4 @@
+name,email,phone,mailing_address,postal_address
+"Jane Smith","jane.smith@acme.com","503-555-0142","742 Evergreen Terrace, Springfield, IL 62704","PO Box 1234, Springfield, IL 62701"
+"Bob Johnson","bob.j@widgets.io","971-555-0198","100 Main St, Portland, OR 97201","200 Industrial Way, Suite 5, Portland, OR 97203"
+"Maria Garcia","m.garcia@example.org","212-555-0167","350 Fifth Ave, New York, NY 10118","350 Fifth Ave, New York, NY 10118"
