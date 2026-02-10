@@ -4,13 +4,13 @@ Each task is scoped to one focused session. Model recommendation in brackets.
 
 ## Day 0 — Foundation (before building features)
 
-- [ ] **T01** [Sonnet] Remove mock extractor from runtime.py
+- [x] **T01** [Sonnet] Remove mock extractor from runtime.py ✓
   - Delete _extract_mock, _guess_merchant, _match_category, _CATEGORY_KEYWORDS
   - Remove --mock flag from __main__.py
   - Remove `import re` if no longer needed
   - Clean up run() to only have the LLM path
 
-- [ ] **T02** [Sonnet] Add pytest infrastructure
+- [x] **T02** [Sonnet] Add pytest infrastructure ✓
   - Add pytest and ruff to pyproject.toml dev dependencies
   - Create tests/ directory
   - Create tests/conftest.py with shared fixtures:
@@ -19,7 +19,7 @@ Each task is scoped to one focused session. Model recommendation in brackets.
     - sample_plan: returns a compiled ExecutionPlan
     - tmp_csv: writes a temp CSV and returns the path
 
-- [ ] **T03** [Sonnet] Write tests for existing code
+- [x] **T03** [Sonnet] Write tests for existing code ✓
   - tests/test_parser.py: parse DEFINE, FROM, EXTRACT, FLAG WHEN, OUTPUT
   - tests/test_compiler.py: prompt generation, JSON schema, enum constraints
   - tests/test_flags.py: flag evaluator with OVER, UNDER, IS, AND/OR combos
@@ -28,12 +28,12 @@ Each task is scoped to one focused session. Model recommendation in brackets.
 
 ## Day 1 — Language: Verbs and Types
 
-- [ ] **T04** [Sonnet] Add CLASSIFY verb
+- [x] **T04** [Sonnet] Add CLASSIFY verb ✓
   - Parser: recognize CLASSIFY <field> INTO <schema> or similar
   - Compiler: generate classification prompt with enum constraint
   - Tests: parser, compiler output, end-to-end with mock
 
-- [ ] **T05** [Sonnet] Add DRAFT verb with prompt library
+- [x] **T05** [Sonnet] Add DRAFT verb with prompt library ✓ (split into T05a-c below)
   - Parser: recognize DRAFT <output_field> WITH <prompt_name>
   - Load .prompt files from prompts/ folder relative to .ai file
   - Compiler: inject prompt text into LLM system message
@@ -44,6 +44,20 @@ Each task is scoped to one focused session. Model recommendation in brackets.
   - Compiler: generate nested JSON schema with $ref or inline
   - Validator: recursively validate nested objects and lists
   - Tests: invoice with line_items, validation of nested structures
+
+- [x] **T05a** [Sonnet] WITH keyword + .prompt file loading ✓
+- [x] **T05b** [Sonnet] USE keyword + .examples file loading ✓
+- [x] **T05c** [Sonnet] DRAFT verb v1 (simple — append field to record) ✓
+
+- [ ] **T05d** [Sonnet] DRAFT v2 — enhanced template + variable substitution
+  - Support {field} placeholders in .prompt templates, substituted from record before LLM call
+  - Hybrid approach: deterministic scaffolding (known fields) + creative generation (LLM)
+  - e.g. "Write a reply to this {type} from {name}, policy {policy_number}"
+  - Compiler substitutes known fields, LLM generates the creative parts
+  - If template is 100% placeholders with no creative prompt, skip LLM call (free mail merge)
+  - Support output templates for formatted responses (email headers, signatures, structure)
+  - Target use case: customer service email auto-replies, chatbot responses, form letters
+  - temp 0.7 creative mode (vs temp 0 for EXTRACT/CLASSIFY) — ties into T09
 
 ## Day 2 — Language: Config and Validation
 
@@ -94,7 +108,7 @@ Each task is scoped to one focused session. Model recommendation in brackets.
 
 ## Day 5 — Polish
 
-- [ ] **T14** [Sonnet] Write README.md
+- [x] **T14** [Sonnet] Write README.md ✓
   - What it is, why it exists (the "calculator vs spreadsheet" pitch)
   - Quick start: install, run expense example
   - DSL syntax reference
