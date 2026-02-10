@@ -39,11 +39,16 @@ Each task is scoped to one focused session. Model recommendation in brackets.
   - Compiler: inject prompt text into LLM system message
   - Tests: prompt file loading, compiler output, missing prompt error
 
-- [ ] **T06** [Opus] Add nested/referenced types
+- [ ] **T06** [Opus] Add nested/referenced types + folder-as-source
   - Parser: recognize LIST OF <other_type> and <type_name> as field type
+  - Parser: FROM supports directory path (e.g. FROM invoices/) — globs *.txt, each file = one record
   - Compiler: generate nested JSON schema with $ref or inline
   - Validator: recursively validate nested objects and lists
-  - Tests: invoice with line_items, validation of nested structures
+  - Runtime: detect folder vs file in FROM, load each .txt as a row with text = file contents
+  - Example: invoices/ folder with one .txt per invoice (multi-line, realistic OCR/email output)
+  - Example .ai file: DEFINE line_item + DEFINE invoice with LIST OF line_item
+  - Tests: nested schema parsing, folder source loading, invoice extraction with line_items
+  - Note: folder-as-source is prerequisite for invoice demo — CSV can't hold multi-line invoice text cleanly
 
 - [x] **T05a** [Sonnet] WITH keyword + .prompt file loading ✓
 - [x] **T05b** [Sonnet] USE keyword + .examples file loading ✓
