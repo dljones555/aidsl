@@ -3,7 +3,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from pathlib import Path
 
-from .parser import Condition, FieldDef, FlagRule, Program, Schema
+from .parser import Condition, DraftDef, FieldDef, FlagRule, Program, Schema
 
 
 @dataclass
@@ -64,6 +64,12 @@ class FlagEvaluator:
 
 
 @dataclass
+class DraftPrompt:
+    system: str  # prompt template (may contain {field} placeholders)
+    field_name: str  # output field name for the generated text
+
+
+@dataclass
 class ExecutionPlan:
     source: str
     extraction_prompt: ExtractionPrompt
@@ -71,12 +77,19 @@ class ExecutionPlan:
     output: str
     schema: Schema
     verb: str = "EXTRACT"  # EXTRACT or CLASSIFY
+    draft_prompt: DraftPrompt | None = None
 
 
 def compile_program(program: Program, base_dir: str = ".") -> ExecutionPlan:
     if program.classify:
-        return _compile_classify(program, base_dir)
-    return _compile_extract(program, base_dir)
+        plan = _compile_classify(program, base_dir)
+    else:
+        plan = _compile_extract(program, base_dir)
+
+    if program.draft:
+        plan.draft_prompt = _compile_draft(program.draft, base_dir)
+
+    return plan
 
 
 def _load_prompt_file(name: str, base_dir: str) -> str:
@@ -270,4 +283,32 @@ def _compile_classify(program: Program, base_dir: str) -> ExecutionPlan:
         output=program.output,
         schema=schema,
         verb="CLASSIFY",
+    )
+
+
+def _compile_draft(draft: DraftDef, base_dir: str) -> DraftPrompt:
+    prompt_lines: list[str] = []
+
+    if draft.prompt_name:
+        template = _load_prompt_file(draft.prompt_name, base_dir)
+        prompt_lines.append(template)
+        prompt_lines.append("")
+
+    prompt_lines.extend([
+        "Given the structured data below, generate the requested text.",
+        f'Put your response in the "{draft.field_name}" field.',
+        "",
+        "Return ONLY a valid JSON object with one field. No markdown, no explanation.",
+    ])
+
+    # Add few-shot examples if USE provided
+    if draft.examples_name:
+        pairs = _load_examples_file(draft.examples_name, base_dir)
+        if pairs:
+            prompt_lines.append("")
+            prompt_lines.append(_format_examples(pairs))
+
+    return DraftPrompt(
+        system="\n".join(prompt_lines),
+        field_name=draft.field_name,
     )

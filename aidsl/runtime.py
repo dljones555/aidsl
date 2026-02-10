@@ -36,7 +36,13 @@ def run(plan: ExecutionPlan, base_dir: str = ".") -> list[dict]:
     print(f"  FLAGS: {len(plan.flag_evaluator.rules)} rules")
     print(f"  MODEL: {model}\n")
 
-    extractor = _make_llm_extractor(token, model)
+    client = httpx.Client(timeout=30.0)
+    headers = {
+        "Authorization": f"Bearer {token}",
+        "Accept": "application/vnd.github+json",
+        "Content-Type": "application/json",
+    }
+    extractor = _make_llm_extractor(client, headers, model)
     results = []
 
     for i, row in enumerate(rows):
@@ -48,6 +54,13 @@ def run(plan: ExecutionPlan, base_dir: str = ".") -> list[dict]:
         record = extractor(plan, text)
 
         if record:
+            # DRAFT step — second LLM call if configured
+            if plan.draft_prompt:
+                draft_text = _draft_llm(client, headers, model, plan, record)
+                if draft_text:
+                    record[plan.draft_prompt.field_name] = draft_text
+                    print(f"           DRAFT: {draft_text[:60]}...")
+
             # Deterministic flag evaluation — no LLM needed
             flags = plan.flag_evaluator.evaluate(record)
             record["_flagged"] = len(flags) > 0
@@ -81,14 +94,7 @@ def run(plan: ExecutionPlan, base_dir: str = ".") -> list[dict]:
 # LLM extractor — GitHub Models inference API (OpenAI compatible)
 # ---------------------------------------------------------------------------
 
-def _make_llm_extractor(token: str, model: str):
-    client = httpx.Client(timeout=30.0)
-    headers = {
-        "Authorization": f"Bearer {token}",
-        "Accept": "application/vnd.github+json",
-        "Content-Type": "application/json",
-    }
-
+def _make_llm_extractor(client: httpx.Client, headers: dict, model: str):
     def _extract_llm(plan: ExecutionPlan, text: str, retries: int = 2) -> dict | None:
         for attempt in range(retries + 1):
             try:
@@ -132,6 +138,44 @@ def _make_llm_extractor(token: str, model: str):
         return None
 
     return _extract_llm
+
+
+def _draft_llm(
+    client: httpx.Client, headers: dict, model: str,
+    plan: ExecutionPlan, record: dict,
+) -> str | None:
+    """Second LLM call: generate text from structured record."""
+    draft = plan.draft_prompt
+    # Inject record data into the user message
+    user_msg = json.dumps(record, indent=2)
+
+    body = {
+        "model": model,
+        "max_tokens": 512,
+        "messages": [
+            {"role": "system", "content": draft.system},
+            {"role": "user", "content": user_msg},
+        ],
+    }
+    try:
+        resp = client.post(_GITHUB_MODELS_URL, headers=headers, json=body)
+        if resp.status_code != 200:
+            return None
+        data = resp.json()
+        raw = data["choices"][0]["message"]["content"].strip()
+
+        # Try to parse as JSON and extract the field
+        if raw.startswith("```"):
+            raw = raw.split("\n", 1)[1]
+            raw = raw.rsplit("```", 1)[0].strip()
+        try:
+            parsed = json.loads(raw)
+            return str(parsed.get(draft.field_name, raw))
+        except json.JSONDecodeError:
+            # LLM returned plain text — use as-is
+            return raw
+    except Exception:
+        return None
 
 
 def _validate(record: dict, plan: ExecutionPlan) -> bool:

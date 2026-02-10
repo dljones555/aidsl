@@ -37,11 +37,19 @@ class ClassifyDef:
 
 
 @dataclass
+class DraftDef:
+    field_name: str  # output field name for the generated text
+    prompt_name: str = ""  # WITH <name> — .prompt template
+    examples_name: str = ""  # USE <name> — .examples file
+
+
+@dataclass
 class Program:
     schemas: dict[str, Schema] = field(default_factory=dict)
     source: str = ""
     extract_target: str = ""
     classify: ClassifyDef | None = None
+    draft: DraftDef | None = None
     prompt_name: str = ""  # WITH <name> — references a .prompt file
     examples_name: str = ""  # USE <name> — references a .examples file
     flags: list[FlagRule] = field(default_factory=list)
@@ -116,6 +124,13 @@ def parse(filepath: str) -> Program:
             use_match = re.search(r"\bUSE\s+(\w+)", stripped)
             if use_match:
                 program.examples_name = use_match.group(1)
+        elif stripped.startswith("DRAFT "):
+            target, with_name, use_name = _split_modifiers(stripped[6:])
+            program.draft = DraftDef(
+                field_name=target,
+                prompt_name=with_name,
+                examples_name=use_name,
+            )
         elif stripped.startswith("WITH "):
             program.prompt_name = stripped[5:].strip()
         elif stripped.startswith("USE "):
