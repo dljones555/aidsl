@@ -54,11 +54,15 @@ Each task is scoped to one focused session. Model recommendation in brackets.
 - [x] **T05b** [Sonnet] USE keyword + .examples file loading ✓
 - [x] **T05c** [Sonnet] DRAFT verb v1 (simple — append field to record) ✓
 
-- [ ] **T05d** [Sonnet] DRAFT v2 — enhanced template + variable substitution
+- [x] **T05d** [Sonnet] DRAFT v2 — {field} placeholder substitution ✓
   - Support {field} placeholders in .prompt templates, substituted from record before LLM call
   - Hybrid approach: deterministic scaffolding (known fields) + creative generation (LLM)
   - e.g. "Write a reply to this {type} from {name}, policy {policy_number}"
   - Compiler substitutes known fields, LLM generates the creative parts
+  - Resolved prompt saved as _draft_prompt in output JSON for audit trail
+  - Remaining items moved to PBI-DRAFT-V3
+
+- [ ] **PBI-DRAFT-V3** [Sonnet] DRAFT v3 — mail merge, output templates, creative temp
   - If template is 100% placeholders with no creative prompt, skip LLM call (free mail merge)
   - Support output templates for formatted responses (email headers, signatures, structure)
   - Target use case: customer service email auto-replies, chatbot responses, form letters
