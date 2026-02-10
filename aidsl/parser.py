@@ -132,9 +132,23 @@ def parse(filepath: str) -> Program:
                 examples_name=use_name,
             )
         elif stripped.startswith("WITH "):
-            program.prompt_name = stripped[5:].strip()
+            rest = stripped[5:].strip()
+            # Handle "WITH ctx USE ex" on one line
+            use_in_with = re.search(r"\bUSE\s+(\w+)", rest)
+            if use_in_with:
+                program.examples_name = use_in_with.group(1)
+                program.prompt_name = rest[:use_in_with.start()].strip()
+            else:
+                program.prompt_name = rest
         elif stripped.startswith("USE "):
-            program.examples_name = stripped[4:].strip()
+            rest = stripped[4:].strip()
+            # Handle "USE ex WITH ctx" on one line
+            with_in_use = re.search(r"\bWITH\s+(\w+)", rest)
+            if with_in_use:
+                program.prompt_name = with_in_use.group(1)
+                program.examples_name = rest[:with_in_use.start()].strip()
+            else:
+                program.examples_name = rest
         elif stripped.startswith("FLAG WHEN "):
             program.flags.append(_parse_flag_rule(stripped[10:]))
         elif stripped.startswith("OUTPUT "):
