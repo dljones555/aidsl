@@ -1,0 +1,15 @@
+INVOICE #INV-2024-001
+Date: 2024-11-15
+From: Acme Office Supplies
+To: Schema Labs Inc.
+
+Items:
+  1x Standing Desk Pro          $849.00
+  2x Monitor Arm Mount           $79.00 each
+  1x Ergonomic Keyboard         $159.00
+
+Subtotal: $1,166.00
+Tax (8.5%): $99.11
+Total: $1,265.11
+
+Payment Terms: Net 30

@@ -1,0 +1,13 @@
+-- Invoice processor
+-- Extracts structured data from invoice text files in a folder
+
+DEFINE invoice:
+  vendor       TEXT
+  invoice_num  TEXT
+  total        MONEY
+  category     ONE OF [office, software, services, meals, other]
+
+FROM invoices/
+EXTRACT invoice
+FLAG WHEN total OVER 1000
+OUTPUT parsed_invoices.json

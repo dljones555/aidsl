@@ -25,11 +25,10 @@ def run(plan: ExecutionPlan, base_dir: str = ".") -> list[dict]:
 
     source_path = Path(base_dir) / plan.source
     if not source_path.exists():
-        print(f"  ERROR: Source file not found: {source_path}")
+        print(f"  ERROR: Source not found: {source_path}")
         sys.exit(1)
 
-    with open(source_path, newline="", encoding="utf-8") as f:
-        rows = list(csv.DictReader(f))
+    rows = _load_source(source_path)
 
     print(f"  READ {len(rows)} rows from {plan.source}")
     print(f"  SCHEMA: {plan.schema.name} ({len(plan.schema.fields)} fields)")
@@ -90,6 +89,30 @@ def run(plan: ExecutionPlan, base_dir: str = ".") -> list[dict]:
     print(f"  SUMMARY: {clean} clean | {flagged} flagged | {errors} errors")
 
     return results
+
+
+# ---------------------------------------------------------------------------
+# Source loading — CSV files or folders of text files
+# ---------------------------------------------------------------------------
+
+def _load_source(source_path: Path) -> list[dict]:
+    """Load input rows from a CSV file or a folder of files.
+
+    CSV: standard DictReader, expects a 'text' column.
+    Folder: reads all files (skipping hidden/dot files), each file becomes
+            a row with 'text' = file contents, '_filename' = file name.
+    """
+    if source_path.is_dir():
+        rows = []
+        for f in sorted(source_path.iterdir()):
+            if f.is_file() and not f.name.startswith("."):
+                text = f.read_text(encoding="utf-8").strip()
+                if text:
+                    rows.append({"text": text, "_filename": f.name})
+        return rows
+
+    with open(source_path, newline="", encoding="utf-8") as f:
+        return list(csv.DictReader(f))
 
 
 # ---------------------------------------------------------------------------

@@ -1,0 +1,12 @@
+Invoice Number: 7892
+Date: November 20, 2024
+Vendor: CloudHost Pro
+
+Service: Annual hosting plan (Business tier)
+Period: Dec 2024 - Nov 2025
+Amount: $2,400.00
+
+Notes: Auto-renewal enabled. Contact support@cloudhost.example to cancel.
+
+Total Due: $2,400.00
+Due Date: December 1, 2024

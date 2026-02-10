@@ -1,0 +1,15 @@
+Catering Invoice
+Mario's Italian Kitchen
+Invoice #MIK-445
+
+Event: Team Holiday Lunch
+Date of Service: December 12, 2024
+Guests: 25
+
+Pasta Buffet (25 guests)     $375.00
+Salad & Bread                 $87.50
+Beverages                    $112.50
+Delivery & Setup              $75.00
+
+Total: $650.00
+Paid via corporate card on file.
