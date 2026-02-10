@@ -13,7 +13,8 @@ from aidsl.compiler import compile_program, ExecutionPlan
 def expense_ai(tmp_path):
     """Write a standard expense.ai file and return its path."""
     ai_file = tmp_path / "expense.ai"
-    ai_file.write_text(textwrap.dedent("""\
+    ai_file.write_text(
+        textwrap.dedent("""\
         DEFINE expense:
           merchant    TEXT
           amount      MONEY
@@ -24,7 +25,8 @@ def expense_ai(tmp_path):
         FLAG WHEN amount OVER 500
         FLAG WHEN category IS travel AND amount OVER 200
         OUTPUT expenses.json
-    """))
+    """)
+    )
     return ai_file
 
 
@@ -45,7 +47,7 @@ def sample_csv(tmp_path):
     """Write a sample receipts.csv and return its parent dir."""
     csv_file = tmp_path / "receipts.csv"
     csv_file.write_text(
-        'text\n'
+        "text\n"
         '"Uber ride to airport, $47.50"\n'
         '"MacBook Pro from Apple Store, $2499.00"\n'
         '"Hotel at Marriott, 3 nights, $687.00"\n'

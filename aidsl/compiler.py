@@ -156,6 +156,84 @@ def _format_examples(pairs: list[tuple[str, str]]) -> str:
     return "\n".join(lines)
 
 
+def _field_to_json_schema(f: FieldDef, all_schemas: dict[str, Schema]) -> dict:
+    """Convert a FieldDef to a JSON schema fragment, resolving nested types."""
+    if f.type == "TEXT":
+        return {"type": "string"}
+    elif f.type == "MONEY":
+        return {"type": "number"}
+    elif f.type == "NUMBER":
+        return {"type": "number"}
+    elif f.type == "BOOL":
+        return {"type": "boolean"}
+    elif f.type == "ENUM":
+        return {"type": "string", "enum": f.enum_values}
+    elif f.type == "LIST":
+        ref_schema = all_schemas.get(f.ref_type)
+        if not ref_schema:
+            raise ValueError(f"Referenced type '{f.ref_type}' not defined")
+        item_props, item_required = _schema_to_json(ref_schema, all_schemas)
+        return {
+            "type": "array",
+            "items": {
+                "type": "object",
+                "properties": item_props,
+                "required": item_required,
+            },
+        }
+    elif f.type == "REF":
+        ref_schema = all_schemas.get(f.ref_type)
+        if not ref_schema:
+            raise ValueError(f"Referenced type '{f.ref_type}' not defined")
+        ref_props, ref_required = _schema_to_json(ref_schema, all_schemas)
+        return {
+            "type": "object",
+            "properties": ref_props,
+            "required": ref_required,
+        }
+    return {"type": "string"}
+
+
+def _schema_to_json(
+    schema: Schema, all_schemas: dict[str, Schema]
+) -> tuple[dict, list[str]]:
+    """Convert a Schema's fields to JSON schema properties + required list."""
+    props: dict = {}
+    required: list[str] = []
+    for f in schema.fields:
+        required.append(f.name)
+        props[f.name] = _field_to_json_schema(f, all_schemas)
+    return props, required
+
+
+def _field_to_prompt_desc(f: FieldDef, all_schemas: dict[str, Schema]) -> str:
+    """Generate a human-readable prompt description for a field."""
+    if f.type == "TEXT":
+        return f"- {f.name}: text string"
+    elif f.type == "MONEY":
+        return f"- {f.name}: numeric dollar amount (number only, no $ sign)"
+    elif f.type == "NUMBER":
+        return f"- {f.name}: numeric value"
+    elif f.type == "BOOL":
+        return f"- {f.name}: true or false"
+    elif f.type == "ENUM":
+        values_str = ", ".join(f.enum_values)
+        return f"- {f.name}: MUST be exactly one of: {values_str}"
+    elif f.type == "LIST":
+        ref_schema = all_schemas.get(f.ref_type)
+        if ref_schema:
+            sub_fields = ", ".join(sf.name for sf in ref_schema.fields)
+            return f"- {f.name}: array of {f.ref_type} objects, each with: {sub_fields}"
+        return f"- {f.name}: array of {f.ref_type} objects"
+    elif f.type == "REF":
+        ref_schema = all_schemas.get(f.ref_type)
+        if ref_schema:
+            sub_fields = ", ".join(sf.name for sf in ref_schema.fields)
+            return f"- {f.name}: {f.ref_type} object with: {sub_fields}"
+        return f"- {f.name}: {f.ref_type} object"
+    return f"- {f.name}: text string"
+
+
 def _compile_extract(program: Program, base_dir: str) -> ExecutionPlan:
     schema = program.schemas.get(program.extract_target)
     if not schema:
@@ -169,32 +247,17 @@ def _compile_extract(program: Program, base_dir: str) -> ExecutionPlan:
         prompt_lines.append(context)
         prompt_lines.append("")
 
-    prompt_lines.extend([
-        "Extract the following fields from the input text.",
-        "Return a JSON object with EXACTLY these fields:\n",
-    ])
+    prompt_lines.extend(
+        [
+            "Extract the following fields from the input text.",
+            "Return a JSON object with EXACTLY these fields:\n",
+        ]
+    )
 
-    json_properties: dict = {}
-    required: list[str] = []
+    json_properties, required = _schema_to_json(schema, program.schemas)
 
     for f in schema.fields:
-        required.append(f.name)
-        if f.type == "TEXT":
-            prompt_lines.append(f"- {f.name}: text string")
-            json_properties[f.name] = {"type": "string"}
-        elif f.type == "MONEY":
-            prompt_lines.append(f"- {f.name}: numeric dollar amount (number only, no $ sign)")
-            json_properties[f.name] = {"type": "number"}
-        elif f.type == "NUMBER":
-            prompt_lines.append(f"- {f.name}: numeric value")
-            json_properties[f.name] = {"type": "number"}
-        elif f.type == "BOOL":
-            prompt_lines.append(f"- {f.name}: true or false")
-            json_properties[f.name] = {"type": "boolean"}
-        elif f.type == "ENUM":
-            values_str = ", ".join(f.enum_values)
-            prompt_lines.append(f"- {f.name}: MUST be exactly one of: {values_str}")
-            json_properties[f.name] = {"type": "string", "enum": f.enum_values}
+        prompt_lines.append(_field_to_prompt_desc(f, program.schemas))
 
     # Append few-shot examples if USE provided
     if program.examples_name:
@@ -203,7 +266,9 @@ def _compile_extract(program: Program, base_dir: str) -> ExecutionPlan:
             prompt_lines.append("")
             prompt_lines.append(_format_examples(pairs))
 
-    prompt_lines.append("\nReturn ONLY a valid JSON object. No markdown, no explanation.")
+    prompt_lines.append(
+        "\nReturn ONLY a valid JSON object. No markdown, no explanation."
+    )
 
     json_schema = {
         "type": "object",
@@ -236,13 +301,15 @@ def _compile_classify(program: Program, base_dir: str) -> ExecutionPlan:
         prompt_lines.append(context)
         prompt_lines.append("")
 
-    prompt_lines.extend([
-        "Classify the input text into exactly one category.",
-        f"Categories: {values_str}",
-        "",
-        f'Return a JSON object with one field "{classify.field_name}" '
-        f"whose value is exactly one of: {values_str}",
-    ])
+    prompt_lines.extend(
+        [
+            "Classify the input text into exactly one category.",
+            f"Categories: {values_str}",
+            "",
+            f'Return a JSON object with one field "{classify.field_name}" '
+            f"whose value is exactly one of: {values_str}",
+        ]
+    )
 
     # Append few-shot examples if USE provided
     if program.examples_name:
@@ -251,10 +318,12 @@ def _compile_classify(program: Program, base_dir: str) -> ExecutionPlan:
             prompt_lines.append("")
             prompt_lines.append(_format_examples(pairs))
 
-    prompt_lines.extend([
-        "",
-        "Return ONLY a valid JSON object. No markdown, no explanation.",
-    ])
+    prompt_lines.extend(
+        [
+            "",
+            "Return ONLY a valid JSON object. No markdown, no explanation.",
+        ]
+    )
 
     json_schema = {
         "type": "object",
@@ -294,12 +363,14 @@ def _compile_draft(draft: DraftDef, base_dir: str) -> DraftPrompt:
         prompt_lines.append(template)
         prompt_lines.append("")
 
-    prompt_lines.extend([
-        "Given the structured data below, generate the requested text.",
-        f'Put your response in the "{draft.field_name}" field.',
-        "",
-        "Return ONLY a valid JSON object with one field. No markdown, no explanation.",
-    ])
+    prompt_lines.extend(
+        [
+            "Given the structured data below, generate the requested text.",
+            f'Put your response in the "{draft.field_name}" field.',
+            "",
+            "Return ONLY a valid JSON object with one field. No markdown, no explanation.",
+        ]
+    )
 
     # Add few-shot examples if USE provided
     if draft.examples_name:

@@ -1,10 +1,16 @@
--- Invoice processor
--- Extracts structured data from invoice text files in a folder
+-- Invoice processor with line items
+-- Extracts structured data including nested line items from invoice text files
+
+DEFINE line_item:
+  description TEXT
+  quantity    NUMBER
+  unit_price  MONEY
 
 DEFINE invoice:
   vendor       TEXT
   invoice_num  TEXT
   total        MONEY
+  items        LIST OF line_item
   category     ONE OF [office, software, services, meals, other]
 
 FROM invoices/

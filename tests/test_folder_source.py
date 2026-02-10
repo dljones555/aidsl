@@ -131,6 +131,7 @@ def test_runtime_folder_source_pipeline(tmp_path):
     }
 
     import os
+
     with patch.dict(os.environ, {"GITHUB_TOKEN": "fake-token"}):
         with patch("httpx.Client") as mock_client_cls:
             mock_client = MagicMock()
@@ -138,6 +139,7 @@ def test_runtime_folder_source_pipeline(tmp_path):
             mock_client_cls.return_value = mock_client
 
             from aidsl.runtime import run
+
             results = run(plan, base_dir=str(tmp_path))
 
     assert len(results) == 2

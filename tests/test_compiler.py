@@ -34,7 +34,13 @@ def test_compile_json_schema_properties(expense_program):
     assert props["merchant"]["type"] == "string"
     assert props["amount"]["type"] == "number"
     assert props["category"]["type"] == "string"
-    assert props["category"]["enum"] == ["travel", "meals", "equipment", "software", "office"]
+    assert props["category"]["enum"] == [
+        "travel",
+        "meals",
+        "equipment",
+        "software",
+        "office",
+    ]
 
 
 def test_compile_json_schema_required(expense_program):

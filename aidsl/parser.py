@@ -7,8 +7,9 @@ from dataclasses import dataclass, field
 @dataclass
 class FieldDef:
     name: str
-    type: str  # TEXT, MONEY, NUMBER, BOOL, ENUM
+    type: str  # TEXT, MONEY, NUMBER, BOOL, ENUM, LIST, REF
     enum_values: list[str] = field(default_factory=list)
+    ref_type: str = ""  # referenced type name for LIST OF <type> and <type> refs
 
 
 @dataclass
@@ -99,7 +100,19 @@ def parse(filepath: str) -> Program:
                     enum_match = re.search(r"\[([^\]]+)\]", type_str)
                     if enum_match:
                         values = [v.strip() for v in enum_match.group(1).split(",")]
-                        current_schema.fields.append(FieldDef(field_name, "ENUM", values))
+                        current_schema.fields.append(
+                            FieldDef(field_name, "ENUM", values)
+                        )
+                elif type_str.startswith("LIST OF "):
+                    ref_name = type_str[8:].strip()
+                    current_schema.fields.append(
+                        FieldDef(field_name, "LIST", ref_type=ref_name)
+                    )
+                else:
+                    # Bare word — treat as reference to another defined type
+                    current_schema.fields.append(
+                        FieldDef(field_name, "REF", ref_type=type_str)
+                    )
             i += 1
             continue
 
@@ -137,7 +150,7 @@ def parse(filepath: str) -> Program:
             use_in_with = re.search(r"\bUSE\s+(\w+)", rest)
             if use_in_with:
                 program.examples_name = use_in_with.group(1)
-                program.prompt_name = rest[:use_in_with.start()].strip()
+                program.prompt_name = rest[: use_in_with.start()].strip()
             else:
                 program.prompt_name = rest
         elif stripped.startswith("USE "):
@@ -146,7 +159,7 @@ def parse(filepath: str) -> Program:
             with_in_use = re.search(r"\bWITH\s+(\w+)", rest)
             if with_in_use:
                 program.prompt_name = with_in_use.group(1)
-                program.examples_name = rest[:with_in_use.start()].strip()
+                program.examples_name = rest[: with_in_use.start()].strip()
             else:
                 program.examples_name = rest
         elif stripped.startswith("FLAG WHEN "):
@@ -216,6 +229,8 @@ def _parse_flag_rule(text: str) -> FlagRule:
 
         match = re.match(r"(\w+)\s+(OVER|UNDER|IS)\s+(.+)", token)
         if match:
-            conditions.append(Condition(match.group(1), match.group(2), match.group(3).strip()))
+            conditions.append(
+                Condition(match.group(1), match.group(2), match.group(3).strip())
+            )
 
     return FlagRule(conditions=conditions, conjunctions=conjunctions)

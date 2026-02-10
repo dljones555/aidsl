@@ -28,7 +28,9 @@ def main():
 
     base_dir = str(Path(filepath).parent)
 
-    print(f"  COMPILE {program.extract_target or program.classify.field_name if program.classify else '?'} -> {len(program.flags)} flag rules")
+    print(
+        f"  COMPILE {program.extract_target or program.classify.field_name if program.classify else '?'} -> {len(program.flags)} flag rules"
+    )
     plan = compile_program(program, base_dir=base_dir)
 
     print(f"  RUN     {plan.source} -> {plan.output}\n")

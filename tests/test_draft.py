@@ -154,10 +154,13 @@ def test_runtime_draft_appends_field(tmp_path):
     draft_resp = MagicMock()
     draft_resp.status_code = 200
     draft_resp.json.return_value = {
-        "choices": [{"message": {"content": json.dumps({"summary": "Record for John Smith."})}}]
+        "choices": [
+            {"message": {"content": json.dumps({"summary": "Record for John Smith."})}}
+        ]
     }
 
     import os
+
     with patch.dict(os.environ, {"GITHUB_TOKEN": "fake-token"}):
         with patch("httpx.Client") as mock_client_cls:
             mock_client = MagicMock()
@@ -165,6 +168,7 @@ def test_runtime_draft_appends_field(tmp_path):
             mock_client_cls.return_value = mock_client
 
             from aidsl.runtime import run
+
             results = run(plan, base_dir=str(tmp_path))
 
     assert len(results) == 1
@@ -253,10 +257,17 @@ def test_runtime_draft_substitutes_placeholders(tmp_path):
     draft_resp = MagicMock()
     draft_resp.status_code = 200
     draft_resp.json.return_value = {
-        "choices": [{"message": {"content": json.dumps({"response": "Your claim has been received."})}}]
+        "choices": [
+            {
+                "message": {
+                    "content": json.dumps({"response": "Your claim has been received."})
+                }
+            }
+        ]
     }
 
     import os
+
     with patch.dict(os.environ, {"GITHUB_TOKEN": "fake-token"}):
         with patch("httpx.Client") as mock_client_cls:
             mock_client = MagicMock()
@@ -264,6 +275,7 @@ def test_runtime_draft_substitutes_placeholders(tmp_path):
             mock_client_cls.return_value = mock_client
 
             from aidsl.runtime import run
+
             results = run(plan, base_dir=str(tmp_path))
 
     assert len(results) == 1

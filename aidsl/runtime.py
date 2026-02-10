@@ -55,7 +55,9 @@ def run(plan: ExecutionPlan, base_dir: str = ".") -> list[dict]:
         if record:
             # DRAFT step — second LLM call if configured
             if plan.draft_prompt:
-                draft_text, resolved_prompt = _draft_llm(client, headers, model, plan, record)
+                draft_text, resolved_prompt = _draft_llm(
+                    client, headers, model, plan, record
+                )
                 if draft_text:
                     record[plan.draft_prompt.field_name] = draft_text
                     record["_draft_prompt"] = resolved_prompt
@@ -95,6 +97,7 @@ def run(plan: ExecutionPlan, base_dir: str = ".") -> list[dict]:
 # Source loading — CSV files or folders of text files
 # ---------------------------------------------------------------------------
 
+
 def _load_source(source_path: Path) -> list[dict]:
     """Load input rows from a CSV file or a folder of files.
 
@@ -119,6 +122,7 @@ def _load_source(source_path: Path) -> list[dict]:
 # LLM extractor — GitHub Models inference API (OpenAI compatible)
 # ---------------------------------------------------------------------------
 
+
 def _make_llm_extractor(client: httpx.Client, headers: dict, model: str):
     def _extract_llm(plan: ExecutionPlan, text: str, retries: int = 2) -> dict | None:
         for attempt in range(retries + 1):
@@ -136,7 +140,7 @@ def _make_llm_extractor(client: httpx.Client, headers: dict, model: str):
                 if resp.status_code != 200:
                     print(f"           HTTP {resp.status_code}: {resp.text[:120]}")
                     if attempt < retries:
-                        time.sleep(2 ** attempt)
+                        time.sleep(2**attempt)
                         continue
                     return None
 
@@ -179,8 +183,11 @@ def _substitute_placeholders(template: str, record: dict) -> str:
 
 
 def _draft_llm(
-    client: httpx.Client, headers: dict, model: str,
-    plan: ExecutionPlan, record: dict,
+    client: httpx.Client,
+    headers: dict,
+    model: str,
+    plan: ExecutionPlan,
+    record: dict,
 ) -> tuple[str | None, str]:
     """Second LLM call: generate text from structured record.
 
@@ -225,7 +232,11 @@ def _draft_llm(
 
 def _validate(record: dict, plan: ExecutionPlan) -> bool:
     props = plan.extraction_prompt.json_schema.get("properties", {})
+    return _validate_object(record, props)
 
+
+def _validate_object(record: dict, props: dict) -> bool:
+    """Recursively validate a record against JSON schema properties."""
     for name, schema in props.items():
         if name not in record:
             return False
@@ -234,8 +245,29 @@ def _validate(record: dict, plan: ExecutionPlan) -> bool:
 
         if schema.get("type") == "number":
             try:
-                record[name] = float(value) if not isinstance(value, (int, float)) else value
+                record[name] = (
+                    float(value) if not isinstance(value, (int, float)) else value
+                )
             except (ValueError, TypeError):
+                return False
+
+        if schema.get("type") == "array":
+            if not isinstance(value, list):
+                return False
+            item_schema = schema.get("items", {})
+            if item_schema.get("type") == "object":
+                item_props = item_schema.get("properties", {})
+                for item in value:
+                    if not isinstance(item, dict):
+                        return False
+                    if not _validate_object(item, item_props):
+                        return False
+
+        if schema.get("type") == "object":
+            if not isinstance(value, dict):
+                return False
+            nested_props = schema.get("properties", {})
+            if not _validate_object(value, nested_props):
                 return False
 
         if "enum" in schema:

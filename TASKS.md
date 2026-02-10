@@ -149,3 +149,12 @@ Items below are scoped but not scheduled. Pull into a sprint day when ready.
   - Convention is uppercase but parser should accept lowercase/mixed case
   - One file change (parser.py), ~15 touch points
   - Use `upper = stripped.upper()` for keyword matching, preserve original case for values
+
+- [ ] **PBI-PYTHON-API** Composable fluent Python API (LINQ-style)
+  - Thin builder layer: `Schema("invoice").text("vendor").money("total").list_of("items", line_item)`
+  - Chainable pipeline: `Pipeline().source(...).extract(...).flag(...).output(...).run()`
+  - Builds Program AST directly — same compiler/runtime underneath, zero new infra
+  - Enables embedding in FastAPI, Celery, queues, cron jobs, notebooks
+  - Two on-ramps: .ai files for analysts, Python API for developers
+  - `.run_one(text)` for single-record processing (API/webhook use case)
+  - ~150 lines estimated — builder classes over existing Program/Schema dataclasses

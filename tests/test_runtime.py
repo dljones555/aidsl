@@ -54,9 +54,13 @@ def test_runtime_full_pipeline(tmp_path):
         make_llm_response({"name": "Outback", "price": 45.00, "type": "food"}),
     ]
 
-    with patch("aidsl.runtime.os.environ.get") as mock_env, \
-         patch("aidsl.runtime.httpx.Client") as mock_client_cls:
-        mock_env.side_effect = lambda k, d="": "fake-token" if k == "GITHUB_TOKEN" else d
+    with (
+        patch("aidsl.runtime.os.environ.get") as mock_env,
+        patch("aidsl.runtime.httpx.Client") as mock_client_cls,
+    ):
+        mock_env.side_effect = lambda k, d="": (
+            "fake-token" if k == "GITHUB_TOKEN" else d
+        )
         mock_client = MagicMock()
         mock_client.post = _mock_post_factory(responses)
         mock_client_cls.return_value = mock_client
@@ -102,9 +106,13 @@ def test_runtime_invalid_llm_response_fails(tmp_path):
     # LLM returns invalid enum value every time
     bad_response = make_llm_response({"name": "X", "type": "INVALID"})
 
-    with patch("aidsl.runtime.os.environ.get") as mock_env, \
-         patch("aidsl.runtime.httpx.Client") as mock_client_cls:
-        mock_env.side_effect = lambda k, d="": "fake-token" if k == "GITHUB_TOKEN" else d
+    with (
+        patch("aidsl.runtime.os.environ.get") as mock_env,
+        patch("aidsl.runtime.httpx.Client") as mock_client_cls,
+    ):
+        mock_env.side_effect = lambda k, d="": (
+            "fake-token" if k == "GITHUB_TOKEN" else d
+        )
         mock_client = MagicMock()
         mock_client.post = _mock_post_factory([bad_response])
         mock_client_cls.return_value = mock_client
@@ -118,12 +126,7 @@ def test_runtime_invalid_llm_response_fails(tmp_path):
 def test_runtime_markdown_fences_stripped(tmp_path):
     ai_file = tmp_path / "test.ai"
     ai_file.write_text(
-        "DEFINE item:\n"
-        "  name TEXT\n"
-        "\n"
-        "FROM data.csv\n"
-        "EXTRACT item\n"
-        "OUTPUT result.json\n"
+        "DEFINE item:\n  name TEXT\n\nFROM data.csv\nEXTRACT item\nOUTPUT result.json\n"
     )
 
     csv_file = tmp_path / "data.csv"
@@ -134,17 +137,23 @@ def test_runtime_markdown_fences_stripped(tmp_path):
 
     # LLM wraps response in markdown fences
     fenced = {
-        "choices": [{
-            "message": {
-                "content": '```json\n{"name": "Test"}\n```',
-                "role": "assistant",
+        "choices": [
+            {
+                "message": {
+                    "content": '```json\n{"name": "Test"}\n```',
+                    "role": "assistant",
+                }
             }
-        }]
+        ]
     }
 
-    with patch("aidsl.runtime.os.environ.get") as mock_env, \
-         patch("aidsl.runtime.httpx.Client") as mock_client_cls:
-        mock_env.side_effect = lambda k, d="": "fake-token" if k == "GITHUB_TOKEN" else d
+    with (
+        patch("aidsl.runtime.os.environ.get") as mock_env,
+        patch("aidsl.runtime.httpx.Client") as mock_client_cls,
+    ):
+        mock_env.side_effect = lambda k, d="": (
+            "fake-token" if k == "GITHUB_TOKEN" else d
+        )
         mock_client = MagicMock()
         mock_client.post = _mock_post_factory([fenced])
         mock_client_cls.return_value = mock_client

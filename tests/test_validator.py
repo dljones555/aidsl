@@ -30,7 +30,12 @@ def test_amount_not_a_number(expense_plan):
 
 
 def test_extra_fields_ok(expense_plan):
-    record = {"merchant": "Uber", "amount": 47.5, "category": "travel", "extra": "ignored"}
+    record = {
+        "merchant": "Uber",
+        "amount": 47.5,
+        "category": "travel",
+        "extra": "ignored",
+    }
     assert _validate(record, expense_plan) is True
 
 

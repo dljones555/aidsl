@@ -19,7 +19,9 @@ def test_parse_classify_basic(tmp_path):
 
 def test_parse_classify_with_field_name(tmp_path):
     ai = tmp_path / "t.ai"
-    ai.write_text("FROM d.csv\nCLASSIFY type INTO [bug, feature, question]\nOUTPUT o.json\n")
+    ai.write_text(
+        "FROM d.csv\nCLASSIFY type INTO [bug, feature, question]\nOUTPUT o.json\n"
+    )
     prog = parse(str(ai))
     assert prog.classify.field_name == "type"
     assert prog.classify.categories == ["bug", "feature", "question"]
@@ -27,7 +29,9 @@ def test_parse_classify_with_field_name(tmp_path):
 
 def test_parse_classify_with_flags(tmp_path):
     ai = tmp_path / "t.ai"
-    ai.write_text("FROM d.csv\nCLASSIFY type INTO [a, b]\nFLAG WHEN type IS b\nOUTPUT o.json\n")
+    ai.write_text(
+        "FROM d.csv\nCLASSIFY type INTO [a, b]\nFLAG WHEN type IS b\nOUTPUT o.json\n"
+    )
     prog = parse(str(ai))
     assert prog.classify is not None
     assert len(prog.flags) == 1
@@ -35,7 +39,9 @@ def test_parse_classify_with_flags(tmp_path):
 
 def test_compile_classify_prompt(tmp_path):
     ai = tmp_path / "t.ai"
-    ai.write_text("FROM d.csv\nCLASSIFY sentiment INTO [positive, negative, neutral]\nOUTPUT o.json\n")
+    ai.write_text(
+        "FROM d.csv\nCLASSIFY sentiment INTO [positive, negative, neutral]\nOUTPUT o.json\n"
+    )
     prog = parse(str(ai))
     plan = compile_program(prog)
     assert plan.verb == "CLASSIFY"
@@ -82,7 +88,9 @@ def _mock_post_factory(responses):
 
 def test_classify_runtime_pipeline(tmp_path):
     ai = tmp_path / "t.ai"
-    ai.write_text("FROM data.csv\nCLASSIFY type INTO [bug, feature, question]\nFLAG WHEN type IS bug\nOUTPUT out.json\n")
+    ai.write_text(
+        "FROM data.csv\nCLASSIFY type INTO [bug, feature, question]\nFLAG WHEN type IS bug\nOUTPUT out.json\n"
+    )
 
     csv = tmp_path / "data.csv"
     csv.write_text('text\n"App crashes on login"\n"Add dark mode please"\n')
@@ -95,9 +103,13 @@ def test_classify_runtime_pipeline(tmp_path):
         make_llm_response({"type": "feature"}),
     ]
 
-    with patch("aidsl.runtime.os.environ.get") as mock_env, \
-         patch("aidsl.runtime.httpx.Client") as mock_client_cls:
-        mock_env.side_effect = lambda k, d="": "fake-token" if k == "GITHUB_TOKEN" else d
+    with (
+        patch("aidsl.runtime.os.environ.get") as mock_env,
+        patch("aidsl.runtime.httpx.Client") as mock_client_cls,
+    ):
+        mock_env.side_effect = lambda k, d="": (
+            "fake-token" if k == "GITHUB_TOKEN" else d
+        )
         mock_client = MagicMock()
         mock_client.post = _mock_post_factory(responses)
         mock_client_cls.return_value = mock_client
@@ -123,9 +135,13 @@ def test_classify_rejects_invalid_category(tmp_path):
 
     responses = [make_llm_response({"type": "INVALID"})]
 
-    with patch("aidsl.runtime.os.environ.get") as mock_env, \
-         patch("aidsl.runtime.httpx.Client") as mock_client_cls:
-        mock_env.side_effect = lambda k, d="": "fake-token" if k == "GITHUB_TOKEN" else d
+    with (
+        patch("aidsl.runtime.os.environ.get") as mock_env,
+        patch("aidsl.runtime.httpx.Client") as mock_client_cls,
+    ):
+        mock_env.side_effect = lambda k, d="": (
+            "fake-token" if k == "GITHUB_TOKEN" else d
+        )
         mock_client = MagicMock()
         mock_client.post = _mock_post_factory(responses)
         mock_client_cls.return_value = mock_client
