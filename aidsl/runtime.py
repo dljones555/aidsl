@@ -56,9 +56,11 @@ def run(plan: ExecutionPlan, base_dir: str = ".") -> list[dict]:
         if record:
             # DRAFT step — second LLM call if configured
             if plan.draft_prompt:
-                draft_text = _draft_llm(client, headers, model, plan, record)
+                draft_text, resolved_prompt = _draft_llm(client, headers, model, plan, record)
                 if draft_text:
                     record[plan.draft_prompt.field_name] = draft_text
+                    record["_draft_prompt"] = resolved_prompt
+                    print(f"           PROMPT: {resolved_prompt[:70]}...")
                     print(f"           DRAFT: {draft_text[:60]}...")
 
             # Deterministic flag evaluation — no LLM needed
@@ -140,27 +142,47 @@ def _make_llm_extractor(client: httpx.Client, headers: dict, model: str):
     return _extract_llm
 
 
+def _substitute_placeholders(template: str, record: dict) -> str:
+    """Replace {field_name} placeholders with values from the record.
+
+    Uses simple string replacement — not Jinja/Handlebars.
+    Unknown placeholders are left as-is.
+    """
+    result = template
+    for key, value in record.items():
+        if not key.startswith("_"):
+            result = result.replace("{" + key + "}", str(value))
+    return result
+
+
 def _draft_llm(
     client: httpx.Client, headers: dict, model: str,
     plan: ExecutionPlan, record: dict,
-) -> str | None:
-    """Second LLM call: generate text from structured record."""
+) -> tuple[str | None, str]:
+    """Second LLM call: generate text from structured record.
+
+    Returns (draft_text, resolved_prompt) — the resolved prompt shows
+    the template after {field} substitution for audit/debugging.
+    """
     draft = plan.draft_prompt
-    # Inject record data into the user message
+
+    # Substitute {field} placeholders in the system prompt from the record
+    system_prompt = _substitute_placeholders(draft.system, record)
+
     user_msg = json.dumps(record, indent=2)
 
     body = {
         "model": model,
         "max_tokens": 512,
         "messages": [
-            {"role": "system", "content": draft.system},
+            {"role": "system", "content": system_prompt},
             {"role": "user", "content": user_msg},
         ],
     }
     try:
         resp = client.post(_GITHUB_MODELS_URL, headers=headers, json=body)
         if resp.status_code != 200:
-            return None
+            return None, system_prompt
         data = resp.json()
         raw = data["choices"][0]["message"]["content"].strip()
 
@@ -170,12 +192,12 @@ def _draft_llm(
             raw = raw.rsplit("```", 1)[0].strip()
         try:
             parsed = json.loads(raw)
-            return str(parsed.get(draft.field_name, raw))
+            return str(parsed.get(draft.field_name, raw)), system_prompt
         except json.JSONDecodeError:
             # LLM returned plain text — use as-is
-            return raw
+            return raw, system_prompt
     except Exception:
-        return None
+        return None, system_prompt
 
 
 def _validate(record: dict, plan: ExecutionPlan) -> bool:
