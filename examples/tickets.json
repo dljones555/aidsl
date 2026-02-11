@@ -1,0 +1,26 @@
+[
+  {
+    "id": 1,
+    "customer": "Jane Smith",
+    "message": "I need to update my home address on my auto policy",
+    "priority": "normal"
+  },
+  {
+    "id": 2,
+    "customer": "Bob Johnson",
+    "message": "My car was hit in a parking lot yesterday, need to file a claim",
+    "priority": "high"
+  },
+  {
+    "id": 3,
+    "customer": "Alice Williams",
+    "message": "What are your business hours?",
+    "priority": "low"
+  },
+  {
+    "id": 4,
+    "customer": "Charlie Brown",
+    "message": "I've been on hold for 30 minutes and nobody has helped me, this is unacceptable",
+    "priority": "high"
+  }
+]

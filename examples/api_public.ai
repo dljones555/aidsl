@@ -1,0 +1,12 @@
+-- Public API example (no auth required)
+-- Uses JSONPlaceholder free test API
+
+FROM https://jsonplaceholder.typicode.com/users
+EXTRACT user
+OUTPUT users.json
+
+DEFINE user:
+  name     TEXT
+  email    TEXT
+  city     TEXT
+  company  TEXT

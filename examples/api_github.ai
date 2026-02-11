@@ -1,0 +1,10 @@
+-- GitHub API example (optional auth for higher rate limits)
+-- Demonstrates API source with query parameters
+-- Uncomment SET HEADER line and add your GitHub token for authenticated requests
+
+-- SET HEADER Authorization Bearer YOUR_GITHUB_TOKEN_HERE
+
+FROM https://api.github.com/users/torvalds/repos?per_page=5
+CLASSIFY language INTO [C, Assembly, Python, Shell, other]
+FLAG WHEN language IS C
+OUTPUT github_repos.json

@@ -50,6 +50,7 @@ class Settings:
     temperature: float | None = None
     top_p: float | None = None
     seed: int | None = None
+    headers: dict[str, str] = field(default_factory=dict)
 
 
 @dataclass
@@ -241,6 +242,11 @@ def _parse_set(text: str, settings: Settings) -> None:
         settings.top_p = float(value)
     elif key == "SEED":
         settings.seed = int(value)
+    elif key == "HEADER":
+        # SET HEADER Authorization Bearer token123
+        header_parts = value.split(None, 1)
+        if len(header_parts) == 2:
+            settings.headers[header_parts[0]] = header_parts[1]
 
 
 def _parse_flag_rule(text: str) -> FlagRule:

@@ -1,0 +1,12 @@
+-- Ticket classifier using JSON file source
+-- Demonstrates FROM with .json file containing array of records
+
+DEFINE ticket:
+  customer TEXT
+  message  TEXT
+  priority TEXT
+
+FROM tickets.json
+CLASSIFY type INTO [policy, claim, inquiry, complaint]
+FLAG WHEN type IS complaint
+OUTPUT classified_tickets.json

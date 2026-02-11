@@ -23,12 +23,15 @@ def run(plan: ExecutionPlan, base_dir: str = ".") -> list[dict]:
         print("  ERROR: Set GITHUB_TOKEN env var (GitHub PAT with models:read)")
         sys.exit(1)
 
-    source_path = Path(base_dir) / plan.source
-    if not source_path.exists():
-        print(f"  ERROR: Source not found: {source_path}")
-        sys.exit(1)
-
-    rows = _load_source(source_path)
+    # Handle API sources (https://) vs file sources
+    if plan.source.startswith("https://"):
+        rows = _load_source(Path(), source_str=plan.source, headers=plan.settings.headers)
+    else:
+        source_path = Path(base_dir) / plan.source
+        if not source_path.exists():
+            print(f"  ERROR: Source not found: {source_path}")
+            sys.exit(1)
+        rows = _load_source(source_path, source_str=plan.source)
 
     print(f"  READ {len(rows)} rows from {plan.source}")
     print(f"  SCHEMA: {plan.schema.name} ({len(plan.schema.fields)} fields)")
@@ -110,22 +113,55 @@ def _row_to_text(row: dict) -> str:
     return json.dumps(clean) if clean else ""
 
 
-def _load_source(source_path: Path) -> list[dict]:
-    """Load input rows from a CSV file or a folder of files.
+def _load_source(source_path: Path, source_str: str = "", headers: dict | None = None) -> list[dict]:
+    """Load input rows from CSV, JSON file, folder, or HTTPS API.
 
     CSV: standard DictReader — works with any column layout.
+    JSON: json.load returns list of dicts.
     Folder: reads all files (skipping hidden/dot files), each file becomes
             a row with 'text' = file contents, '_filename' = file name.
+    HTTPS: GET request, expects JSON array response.
     """
+    # API source (starts with https://)
+    if source_str.startswith("https://"):
+        client = httpx.Client(timeout=30.0)
+        resp = client.get(source_str, headers=headers or {})
+        if resp.status_code != 200:
+            print(f"  ERROR: HTTP {resp.status_code} from {source_str}")
+            sys.exit(1)
+        data = resp.json()
+        if isinstance(data, list):
+            return data
+        return [data]  # single object wrapped in list
+
+    # JSON file
+    if source_path.suffix == ".json":
+        with open(source_path, encoding="utf-8") as f:
+            data = json.load(f)
+            if isinstance(data, list):
+                return data
+            return [data]  # single object wrapped in list
+
+    # Folder of files
     if source_path.is_dir():
         rows = []
         for f in sorted(source_path.iterdir()):
             if f.is_file() and not f.name.startswith("."):
-                text = f.read_text(encoding="utf-8").strip()
-                if text:
-                    rows.append({"text": text, "_filename": f.name})
+                if f.suffix == ".json":
+                    # Parse JSON file - could be single object or array
+                    data = json.loads(f.read_text(encoding="utf-8"))
+                    if isinstance(data, list):
+                        rows.extend(data)
+                    else:
+                        rows.append(data)
+                else:
+                    # Treat as unstructured text
+                    text = f.read_text(encoding="utf-8").strip()
+                    if text:
+                        rows.append({"text": text, "_filename": f.name})
         return rows
 
+    # CSV file
     with open(source_path, newline="", encoding="utf-8") as f:
         return list(csv.DictReader(f))
 

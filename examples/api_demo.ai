@@ -1,0 +1,10 @@
+-- API source example
+-- Demonstrates FROM with https:// URL and SET HEADER for authentication
+
+SET HEADER Authorization Bearer your-api-token-here
+SET HEADER X-API-Version v2
+
+FROM https://api.example.com/tickets
+CLASSIFY type INTO [billing, technical, account, general]
+FLAG WHEN type IS billing
+OUTPUT api_tickets.json
