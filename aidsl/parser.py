@@ -45,6 +45,14 @@ class DraftDef:
 
 
 @dataclass
+class Settings:
+    model: str = ""
+    temperature: float | None = None
+    top_p: float | None = None
+    seed: int | None = None
+
+
+@dataclass
 class Program:
     schemas: dict[str, Schema] = field(default_factory=dict)
     source: str = ""
@@ -55,6 +63,7 @@ class Program:
     examples_name: str = ""  # USE <name> — references a .examples file
     flags: list[FlagRule] = field(default_factory=list)
     output: str = ""
+    settings: Settings = field(default_factory=Settings)
 
 
 def parse(filepath: str) -> Program:
@@ -162,6 +171,8 @@ def parse(filepath: str) -> Program:
                 program.examples_name = rest[: with_in_use.start()].strip()
             else:
                 program.examples_name = rest
+        elif stripped.startswith("SET "):
+            _parse_set(stripped[4:], program.settings)
         elif stripped.startswith("FLAG WHEN "):
             program.flags.append(_parse_flag_rule(stripped[10:]))
         elif stripped.startswith("OUTPUT "):
@@ -214,6 +225,22 @@ def _parse_classify(text: str) -> ClassifyDef:
         field_name = "classification"
 
     return ClassifyDef(field_name=field_name, categories=categories)
+
+
+def _parse_set(text: str, settings: Settings) -> None:
+    """Parse 'SET KEY value' into the Settings object."""
+    parts = text.strip().split(None, 1)
+    if len(parts) != 2:
+        return
+    key, value = parts[0].upper(), parts[1].strip()
+    if key == "MODEL":
+        settings.model = value
+    elif key == "TEMPERATURE":
+        settings.temperature = float(value)
+    elif key == "TOP_P":
+        settings.top_p = float(value)
+    elif key == "SEED":
+        settings.seed = int(value)
 
 
 def _parse_flag_rule(text: str) -> FlagRule:

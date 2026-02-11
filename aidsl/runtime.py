@@ -18,7 +18,7 @@ _DEFAULT_MODEL = "openai/gpt-4.1-mini"
 
 def run(plan: ExecutionPlan, base_dir: str = ".") -> list[dict]:
     token = os.environ.get("GITHUB_TOKEN", "")
-    model = os.environ.get("AIDSL_MODEL", _DEFAULT_MODEL)
+    model = plan.settings.model or os.environ.get("AIDSL_MODEL", _DEFAULT_MODEL)
     if not token:
         print("  ERROR: Set GITHUB_TOKEN env var (GitHub PAT with models:read)")
         sys.exit(1)
@@ -135,6 +135,16 @@ def _load_source(source_path: Path) -> list[dict]:
 # ---------------------------------------------------------------------------
 
 
+def _apply_settings(body: dict, plan: ExecutionPlan) -> None:
+    """Apply SET overrides (temperature, top_p, seed) to an API request body."""
+    if plan.settings and plan.settings.temperature is not None:
+        body["temperature"] = plan.settings.temperature
+    if plan.settings and plan.settings.top_p is not None:
+        body["top_p"] = plan.settings.top_p
+    if plan.settings and plan.settings.seed is not None:
+        body["seed"] = plan.settings.seed
+
+
 def _make_llm_extractor(client: httpx.Client, headers: dict, model: str):
     def _extract_llm(plan: ExecutionPlan, text: str, retries: int = 2) -> dict | None:
         for attempt in range(retries + 1):
@@ -147,6 +157,7 @@ def _make_llm_extractor(client: httpx.Client, headers: dict, model: str):
                         {"role": "user", "content": text},
                     ],
                 }
+                _apply_settings(body, plan)
                 resp = client.post(_GITHUB_MODELS_URL, headers=headers, json=body)
 
                 if resp.status_code != 200:
@@ -221,6 +232,7 @@ def _draft_llm(
             {"role": "user", "content": user_msg},
         ],
     }
+    _apply_settings(body, plan)
     try:
         resp = client.post(_GITHUB_MODELS_URL, headers=headers, json=body)
         if resp.status_code != 200:

@@ -1,6 +1,10 @@
 -- Expense report processor
 -- Extracts structured data from receipt text and flags policy violations
 
+SET MODEL gpt-4.1
+SET TEMPERATURE 0
+SET SEED 42
+
 DEFINE expense:
   merchant    TEXT
   amount      MONEY

@@ -3,7 +3,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from pathlib import Path
 
-from .parser import Condition, DraftDef, FieldDef, FlagRule, Program, Schema
+from .parser import Condition, DraftDef, FieldDef, FlagRule, Program, Schema, Settings
 
 
 @dataclass
@@ -78,6 +78,7 @@ class ExecutionPlan:
     schema: Schema
     verb: str = "EXTRACT"  # EXTRACT or CLASSIFY
     draft_prompt: DraftPrompt | None = None
+    settings: Settings = None  # type: ignore[assignment]
 
 
 def compile_program(program: Program, base_dir: str = ".") -> ExecutionPlan:
@@ -88,6 +89,8 @@ def compile_program(program: Program, base_dir: str = ".") -> ExecutionPlan:
 
     if program.draft:
         plan.draft_prompt = _compile_draft(program.draft, base_dir)
+
+    plan.settings = program.settings
 
     return plan
 
