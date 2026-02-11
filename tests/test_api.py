@@ -152,14 +152,10 @@ def test_pipeline_draft_builds_program():
     assert program.draft.field_name == "summary"
 
 
-def test_pipeline_with_prompt_and_use_examples():
+def test_pipeline_prompt_and_examples():
     schema = SchemaBuilder("item").text("name").build()
     program = (
-        Pipeline()
-        .extract(schema)
-        .with_prompt("context")
-        .use_examples("samples")
-        .to_program()
+        Pipeline().extract(schema).prompt("context").examples("samples").to_program()
     )
     assert program.prompt_name == "context"
     assert program.examples_name == "samples"

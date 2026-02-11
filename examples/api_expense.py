@@ -35,4 +35,6 @@ results = (
 # -- Print summary --
 for r in results:
     flag = " ** FLAGGED" if r.get("_flagged") else ""
-    print(f"  {r.get('merchant', '?'):20s}  ${r.get('amount', 0):>8.2f}  {r.get('category', '?')}{flag}")
+    print(
+        f"  {r.get('merchant', '?'):20s}  ${r.get('amount', 0):>8.2f}  {r.get('category', '?')}{flag}"
+    )

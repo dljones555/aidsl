@@ -244,7 +244,7 @@ def _compile_extract(program: Program, base_dir: str) -> ExecutionPlan:
 
     prompt_lines: list[str] = []
 
-    # Prepend WITH context if provided
+    # Prepend PROMPT context if provided
     if program.prompt_name:
         context = _load_prompt_file(program.prompt_name, base_dir)
         prompt_lines.append(context)
@@ -262,7 +262,7 @@ def _compile_extract(program: Program, base_dir: str) -> ExecutionPlan:
     for f in schema.fields:
         prompt_lines.append(_field_to_prompt_desc(f, program.schemas))
 
-    # Append few-shot examples if USE provided
+    # Append few-shot examples if EXAMPLES provided
     if program.examples_name:
         pairs = _load_examples_file(program.examples_name, base_dir)
         if pairs:
@@ -298,7 +298,7 @@ def _compile_classify(program: Program, base_dir: str) -> ExecutionPlan:
 
     prompt_lines: list[str] = []
 
-    # Prepend WITH context if provided
+    # Prepend PROMPT context if provided
     if program.prompt_name:
         context = _load_prompt_file(program.prompt_name, base_dir)
         prompt_lines.append(context)
@@ -314,7 +314,7 @@ def _compile_classify(program: Program, base_dir: str) -> ExecutionPlan:
         ]
     )
 
-    # Append few-shot examples if USE provided
+    # Append few-shot examples if EXAMPLES provided
     if program.examples_name:
         pairs = _load_examples_file(program.examples_name, base_dir)
         if pairs:
@@ -375,7 +375,7 @@ def _compile_draft(draft: DraftDef, base_dir: str) -> DraftPrompt:
         ]
     )
 
-    # Add few-shot examples if USE provided
+    # Add few-shot examples if EXAMPLES provided
     if draft.examples_name:
         pairs = _load_examples_file(draft.examples_name, base_dir)
         if pairs:

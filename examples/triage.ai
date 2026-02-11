@@ -1,10 +1,10 @@
 -- Support ticket classifier
 -- Routes incoming tickets to the right team
--- WITH pulls in a prompt 
--- USE pulls in few shot examples
+-- PROMPT pulls in a prompt 
+-- EXAMPLES pulls in few shot examples
 
 FROM tickets.csv
 CLASSIFY type INTO [policy, claim, inquiry, complaint]
-  WITH insurance_context USE ticket_samples
+  PROMPT insurance_context EXAMPLES ticket_samples
 FLAG WHEN type IS complaint
 OUTPUT classified.json

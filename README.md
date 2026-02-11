@@ -39,7 +39,7 @@ DEFINE expense:
   category    ONE OF [travel, meals, equipment, software, office]
 
 FROM receipts.csv
-EXTRACT expense USE expense_samples
+EXTRACT expense EXAMPLES expense_samples
 FLAG WHEN amount OVER 500
 FLAG WHEN category IS travel AND amount OVER 200
 OUTPUT expenses.json
@@ -118,8 +118,8 @@ That's it. No Python. No YAML. No prompt engineering. The compiler handles:
 | Modifier | Purpose | Example |
 |----------|---------|---------|
 | `FLAG WHEN` | Deterministic business rule | `FLAG WHEN amount OVER 500` |
-| `WITH` | Named prompt context | `EXTRACT x WITH my_context` |
-| `USE` | Few-shot examples | `EXTRACT x USE my_samples` |
+| `PROMPT` | Named prompt context | `EXTRACT x PROMPT my_context` |
+| `EXAMPLES` | Few-shot examples | `EXTRACT x EXAMPLES my_samples` |
 
 ---
 
@@ -142,7 +142,7 @@ uv run python -m aidsl run examples/expense.ai
 
 ## Prompt Library
 
-**WITH** loads a `.prompt` file — system context for tone and domain knowledge:
+**PROMPT** loads a `.prompt` file — system context for tone and domain knowledge:
 
 ```
 # prompts/insurance_context.prompt
@@ -152,7 +152,7 @@ Policy types include auto, home, life, and commercial.
 Be precise with categorization.
 ```
 
-**USE** loads a `.examples` file — few-shot input/output pairs:
+**EXAMPLES** loads a `.examples` file — few-shot input/output pairs:
 
 ```
 # examples/expense_samples.examples
@@ -175,7 +175,7 @@ The `.ai` file owns structure. The `.prompt` file owns tone. The `.examples` fil
 ```sql
 FROM tickets.csv
 CLASSIFY type INTO [policy, claim, inquiry, complaint]
-  WITH insurance_context USE ticket_samples
+  PROMPT insurance_context EXAMPLES ticket_samples
 FLAG WHEN type IS complaint
 OUTPUT classified.json
 ```

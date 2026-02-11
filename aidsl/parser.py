@@ -40,8 +40,8 @@ class ClassifyDef:
 @dataclass
 class DraftDef:
     field_name: str  # output field name for the generated text
-    prompt_name: str = ""  # WITH <name> — .prompt template
-    examples_name: str = ""  # USE <name> — .examples file
+    prompt_name: str = ""  # PROMPT <name> — .prompt template
+    examples_name: str = ""  # EXAMPLES <name> — .examples file
 
 
 @dataclass
@@ -60,8 +60,8 @@ class Program:
     extract_target: str = ""
     classify: ClassifyDef | None = None
     draft: DraftDef | None = None
-    prompt_name: str = ""  # WITH <name> — references a .prompt file
-    examples_name: str = ""  # USE <name> — references a .examples file
+    prompt_name: str = ""  # PROMPT <name> — references a .prompt file
+    examples_name: str = ""  # EXAMPLES <name> — references a .examples file
     flags: list[FlagRule] = field(default_factory=list)
     output: str = ""
     settings: Settings = field(default_factory=Settings)
@@ -140,13 +140,13 @@ def parse(filepath: str) -> Program:
                 program.examples_name = use_name
         elif stripped.startswith("CLASSIFY "):
             program.classify = _parse_classify(stripped)
-            # Check for WITH and USE on the CLASSIFY line
-            with_match = re.search(r"\bWITH\s+(\w+)", stripped)
-            if with_match:
-                program.prompt_name = with_match.group(1)
-            use_match = re.search(r"\bUSE\s+(\w+)", stripped)
-            if use_match:
-                program.examples_name = use_match.group(1)
+            # Check for PROMPT and EXAMPLES on the CLASSIFY line
+            prompt_match = re.search(r"\bPROMPT\s+(\w+)", stripped)
+            if prompt_match:
+                program.prompt_name = prompt_match.group(1)
+            examples_match = re.search(r"\bEXAMPLES\s+(\w+)", stripped)
+            if examples_match:
+                program.examples_name = examples_match.group(1)
         elif stripped.startswith("DRAFT "):
             target, with_name, use_name = _split_modifiers(stripped[6:])
             program.draft = DraftDef(
@@ -154,22 +154,22 @@ def parse(filepath: str) -> Program:
                 prompt_name=with_name,
                 examples_name=use_name,
             )
-        elif stripped.startswith("WITH "):
-            rest = stripped[5:].strip()
-            # Handle "WITH ctx USE ex" on one line
-            use_in_with = re.search(r"\bUSE\s+(\w+)", rest)
-            if use_in_with:
-                program.examples_name = use_in_with.group(1)
-                program.prompt_name = rest[: use_in_with.start()].strip()
+        elif stripped.startswith("PROMPT "):
+            rest = stripped[7:].strip()
+            # Handle "PROMPT ctx EXAMPLES ex" on one line
+            examples_in_prompt = re.search(r"\bEXAMPLES\s+(\w+)", rest)
+            if examples_in_prompt:
+                program.examples_name = examples_in_prompt.group(1)
+                program.prompt_name = rest[: examples_in_prompt.start()].strip()
             else:
                 program.prompt_name = rest
-        elif stripped.startswith("USE "):
-            rest = stripped[4:].strip()
-            # Handle "USE ex WITH ctx" on one line
-            with_in_use = re.search(r"\bWITH\s+(\w+)", rest)
-            if with_in_use:
-                program.prompt_name = with_in_use.group(1)
-                program.examples_name = rest[: with_in_use.start()].strip()
+        elif stripped.startswith("EXAMPLES "):
+            rest = stripped[9:].strip()
+            # Handle "EXAMPLES ex PROMPT ctx" on one line
+            prompt_in_examples = re.search(r"\bPROMPT\s+(\w+)", rest)
+            if prompt_in_examples:
+                program.prompt_name = prompt_in_examples.group(1)
+                program.examples_name = rest[: prompt_in_examples.start()].strip()
             else:
                 program.examples_name = rest
         elif stripped.startswith("SET "):
@@ -185,21 +185,21 @@ def parse(filepath: str) -> Program:
 
 
 def _split_modifiers(text: str) -> tuple[str, str, str]:
-    """Split 'expense WITH ctx USE ex' into ('expense', 'ctx', 'ex').
+    """Split 'expense PROMPT ctx EXAMPLES ex' into ('expense', 'ctx', 'ex').
 
-    Supports WITH and USE in any order on the same line.
-    Returns (target, with_name, use_name).
+    Supports PROMPT and EXAMPLES in any order on the same line.
+    Returns (target, prompt_name, examples_name).
     """
     text = text.strip()
 
     with_name = ""
     use_name = ""
 
-    with_match = re.search(r"\bWITH\s+(\w+)", text)
+    with_match = re.search(r"\bPROMPT\s+(\w+)", text)
     if with_match:
         with_name = with_match.group(1)
 
-    use_match = re.search(r"\bUSE\s+(\w+)", text)
+    use_match = re.search(r"\bEXAMPLES\s+(\w+)", text)
     if use_match:
         use_name = use_match.group(1)
 

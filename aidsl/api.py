@@ -114,11 +114,11 @@ class Pipeline:
         self._draft_def = DraftDef(field_name=field_name)
         return self
 
-    def with_prompt(self, name: str) -> Pipeline:
+    def prompt(self, name: str) -> Pipeline:
         self._prompt_name = name
         return self
 
-    def use_examples(self, name: str) -> Pipeline:
+    def examples(self, name: str) -> Pipeline:
         self._examples_name = name
         return self
 

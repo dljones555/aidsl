@@ -3,7 +3,7 @@
 
 FROM tickets.csv
 CLASSIFY type INTO [policy, claim, inquiry, complaint]
-  WITH insurance_context USE ticket_samples
-DRAFT reply WITH customer_reply
+  PROMPT insurance_context EXAMPLES ticket_samples
+DRAFT reply PROMPT customer_reply
 FLAG WHEN type IS complaint
 OUTPUT triage_replies.json

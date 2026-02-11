@@ -205,10 +205,7 @@ Items below are scoped but not scheduled. Pull into a sprint day when ready.
   - .ai file defines defaults; CLI flags or Python API kwargs override them
   - Enables same pipeline.ai for dev (local folders) and prod (S3, API, etc.)
 
-- [ ] **PBI-KEYWORD-CLARITY** Rename WITH/USE keywords for readability
-  - WITH is unclear — doesn't convey "prompt template"; consider WITH_PROMPT or PROMPT
-  - USE is unclear — doesn't convey "few-shot examples"; consider USE_EXAMPLES or EXAMPLES
-  - Current syntax: `EXTRACT expense WITH context USE samples`
-  - Proposed: `EXTRACT expense PROMPT context EXAMPLES samples` (or similar)
-  - Must update: parser, compiler, all .ai examples, tests, Python API (.with_prompt/.use_examples)
-  - Breaking change — needs migration path or deprecation period
+- [x] **PBI-KEYWORD-CLARITY** Rename WITH/USE keywords for readability ✓
+  - `WITH` → `PROMPT`, `USE` → `EXAMPLES` across parser, compiler, examples, tests, API, docs
+  - New syntax: `EXTRACT expense PROMPT context EXAMPLES samples`
+  - Python API: `.with_prompt()` → `.prompt()`, `.use_examples()` → `.examples()`

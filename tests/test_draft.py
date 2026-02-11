@@ -11,11 +11,11 @@ from aidsl.runtime import _substitute_placeholders
 # --- Parser tests ---
 
 
-def test_parse_draft_with(tmp_path):
+def test_parse_draft_prompt(tmp_path):
     ai = tmp_path / "t.ai"
     ai.write_text(
         "DEFINE x:\n  name TEXT\n\n"
-        "FROM d.csv\nEXTRACT x\nDRAFT summary WITH reply_tmpl\nOUTPUT o.json\n"
+        "FROM d.csv\nEXTRACT x\nDRAFT summary PROMPT reply_tmpl\nOUTPUT o.json\n"
     )
     prog = parse(str(ai))
     assert prog.draft is not None
@@ -23,11 +23,11 @@ def test_parse_draft_with(tmp_path):
     assert prog.draft.prompt_name == "reply_tmpl"
 
 
-def test_parse_draft_with_and_use(tmp_path):
+def test_parse_draft_prompt_and_examples(tmp_path):
     ai = tmp_path / "t.ai"
     ai.write_text(
         "DEFINE x:\n  name TEXT\n\n"
-        "FROM d.csv\nEXTRACT x\nDRAFT response WITH tmpl USE ex\nOUTPUT o.json\n"
+        "FROM d.csv\nEXTRACT x\nDRAFT response PROMPT tmpl EXAMPLES ex\nOUTPUT o.json\n"
     )
     prog = parse(str(ai))
     assert prog.draft.field_name == "response"
@@ -61,7 +61,7 @@ def test_compile_draft_prompt_created(tmp_path):
     ai = tmp_path / "t.ai"
     ai.write_text(
         "DEFINE x:\n  name TEXT\n\n"
-        "FROM d.csv\nEXTRACT x\nDRAFT summary WITH test_tmpl\nOUTPUT o.json\n"
+        "FROM d.csv\nEXTRACT x\nDRAFT summary PROMPT test_tmpl\nOUTPUT o.json\n"
     )
 
     prompts_dir = tmp_path / "prompts"
@@ -92,7 +92,7 @@ def test_compile_draft_with_classify(tmp_path):
     ai.write_text(
         "FROM d.csv\n"
         "CLASSIFY type INTO [a, b]\n"
-        "DRAFT response WITH reply_tmpl\n"
+        "DRAFT response PROMPT reply_tmpl\n"
         "OUTPUT o.json\n"
     )
 
@@ -112,7 +112,7 @@ def test_compile_draft_missing_prompt_raises(tmp_path):
     ai = tmp_path / "t.ai"
     ai.write_text(
         "DEFINE x:\n  name TEXT\n\n"
-        "FROM d.csv\nEXTRACT x\nDRAFT summary WITH nonexistent\nOUTPUT o.json\n"
+        "FROM d.csv\nEXTRACT x\nDRAFT summary PROMPT nonexistent\nOUTPUT o.json\n"
     )
 
     prog = parse(str(ai))
@@ -131,7 +131,7 @@ def test_runtime_draft_appends_field(tmp_path):
     ai = tmp_path / "t.ai"
     ai.write_text(
         "DEFINE x:\n  name TEXT\n\n"
-        "FROM d.csv\nEXTRACT x\nDRAFT summary WITH tmpl\nOUTPUT o.json\n"
+        "FROM d.csv\nEXTRACT x\nDRAFT summary PROMPT tmpl\nOUTPUT o.json\n"
     )
 
     prompts_dir = tmp_path / "prompts"
@@ -228,7 +228,7 @@ def test_runtime_draft_substitutes_placeholders(tmp_path):
     ai.write_text(
         "FROM d.csv\n"
         "CLASSIFY type INTO [claim, inquiry]\n"
-        "DRAFT response WITH tmpl\n"
+        "DRAFT response PROMPT tmpl\n"
         "OUTPUT o.json\n"
     )
 
