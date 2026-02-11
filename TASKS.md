@@ -53,26 +53,27 @@ Each task is scoped to one focused session. Model recommendation in brackets.
 
 ## Day 2 — Types, Sources, and Config
 
-- [ ] **T06a** [Opus] Add nested/referenced types
-  - Parser: recognize LIST OF <other_type> and <type_name> as field type
-  - Compiler: generate nested JSON schema with $ref or inline
-  - Validator: recursively validate nested objects and lists
-  - Example .ai file: DEFINE line_item + DEFINE invoice with LIST OF line_item
-  - Tests: nested schema parsing, nested JSON schema generation, recursive validation
+- [x] **T06a** [Opus] Add nested/referenced types ✓
+  - Parser: LIST OF <type> for arrays, bare type name for nested object references
+  - Compiler: recursive JSON schema generation via _field_to_json_schema / _schema_to_json
+  - Validator: recursive _validate_object for nested objects and arrays
+  - Examples: invoice.ai (LIST OF line_item), contact.ai (reusable address type ref)
+  - Tests: 21 tests — parser, compiler, validator, end-to-end (test_nested.py)
 
-- [ ] **T06b** [Sonnet] FROM folder source
-  - FROM supports directory path (e.g. FROM invoices/) — globs *.txt, each file = one record
-  - Runtime: detect folder vs file in FROM, load each .txt as a row with text = file contents
-  - Works with any verb, not just nested types
-  - Example: invoices/ folder with one .txt per invoice (multi-line, realistic OCR/email output)
-  - Tests: folder source loading, empty folder, mixed file types
-  - Note: combined with T06a, enables the full invoice extraction demo
+- [x] **T06b** [Sonnet] FROM folder source ✓
+  - FROM supports directory path (e.g. FROM invoices/) — reads all non-hidden files
+  - Runtime: _load_source detects folder vs CSV, _row_to_text handles both formats
+  - Standard CSV support: multi-column CSVs sent as JSON to LLM, clean _source in output
+  - Examples: invoices/ folder, contacts.csv (standard multi-column CSV)
+  - Tests: 15 tests — folder loading, _row_to_text, standard CSV (test_folder_source.py)
 
-- [ ] **T07** [Sonnet] Add SET block
-  - Parser: recognize SET model, temperature, top_p, seed
-  - Compiler: pass settings through to ExecutionPlan
-  - Runtime: apply settings to LLM API calls
-  - Tests: SET overrides defaults, invalid values caught
+- [x] **T07** [Sonnet] Add SET block ✓
+  - Parser: SET MODEL, SET TEMPERATURE, SET TOP_P, SET SEED
+  - Settings dataclass flows through compiler onto ExecutionPlan
+  - Runtime: _apply_settings injects params into both extract and draft LLM calls
+  - SET MODEL overrides AIDSL_MODEL env var; unset params use API defaults
+  - Example: expense.ai updated with SET MODEL gpt-4.1, TEMPERATURE 0, SEED 42
+  - Tests: 13 tests — parser, compiler passthrough, runtime apply (test_set.py)
 
 - [ ] **T08** [Sonnet] Add compile-time validation
   - Check schema references exist (EXTRACT names a defined schema)
