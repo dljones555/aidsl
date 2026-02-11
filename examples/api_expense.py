@@ -24,7 +24,7 @@ results = (
     Pipeline()
     .source("receipts.csv")
     .extract(expense)
-    .use_examples("expense_samples")
+    .examples("expense_samples")
     .flag("amount OVER 500")
     .flag("category IS travel AND amount OVER 200")
     .set(model="gpt-4.1", temperature=0, seed=42)

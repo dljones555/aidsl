@@ -65,7 +65,7 @@ Use for emails, summaries, reports, notifications.
 - Input: structured record + named prompt template
 - Output: generated text
 ```
-DRAFT response WITH customer_reply
+DRAFT response PROMPT customer_reply
 ```
 
 ## Modifiers (Control)
@@ -77,18 +77,18 @@ FLAG WHEN amount OVER 500
 FLAG WHEN category IS travel AND amount OVER 200
 ```
 
-**WITH** — Reference a named prompt template from the prompts/ folder.
+**PROMPT** — Reference a named prompt template from the prompts/ folder.
 Separates tone/wording (content person) from structure/rules (business person).
 ```
-DRAFT summary WITH executive_brief
+DRAFT summary PROMPT executive_brief
 ```
 
-**USE** — Reference a named examples file from the examples/ folder.
+**EXAMPLES** — Reference a named examples file from the examples/ folder.
 Few-shot learning: show the LLM input/output pairs so it mimics the pattern.
 More reliable than describing what you want — demonstrate it instead.
 ```
-EXTRACT expense USE expense_samples
-CLASSIFY type INTO [a, b] USE ticket_samples
+EXTRACT expense EXAMPLES expense_samples
+CLASSIFY type INTO [a, b] EXAMPLES ticket_samples
 ```
 
 **SET** — Override default inference parameters. Power user feature.
@@ -118,7 +118,7 @@ genuinely require judgment use AI.
 
 ## Prompt Library
 
-Named `.prompt` files in a `prompts/` folder. Referenced by name with `WITH`.
+Named `.prompt` files in a `prompts/` folder. Referenced by name with `PROMPT`.
 
 - `.ai` file — owns structure, types, rules, flow (business person)
 - `.prompt` file — owns tone, wording, instructions (content person)
@@ -127,7 +127,7 @@ Both are plain text, version controlled, diffable, auditable.
 
 ## Examples Library
 
-Named `.examples` files in an `examples/` folder. Referenced by name with `USE`.
+Named `.examples` files in an `examples/` folder. Referenced by name with `EXAMPLES`.
 
 Format — plain text `INPUT:/OUTPUT:` pairs, blank line between:
 ```

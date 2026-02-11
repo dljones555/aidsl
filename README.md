@@ -1,8 +1,8 @@
 <p align="center">
   <br>
   <img src="https://img.shields.io/badge/AI--DSL-v0.1-blue?style=for-the-badge" alt="version">
-  <img src="https://img.shields.io/badge/tests-70%20passing-brightgreen?style=for-the-badge" alt="tests">
-  <img src="https://img.shields.io/badge/python-3.12+-yellow?style=for-the-badge&logo=python&logoColor=white" alt="python">
+  <img src="https://img.shields.io/badge/tests-165%20passing-brightgreen?style=for-the-badge" alt="tests">
+  <img src="https://img.shields.io/badge/python-3.11+-yellow?style=for-the-badge&logo=python&logoColor=white" alt="python">
   <br><br>
 </p>
 
@@ -10,27 +10,27 @@
 
 <p align="center">
   <strong>Structure beats English.</strong><br>
-  A declarative language for AI workflows that non-engineers can read, write, and trust.
+  An AI concepts first DSL with a parser, compiler, and runtime that turns<br>
+  10 lines of declarative intent into repeatable, schema-constrained AI workflows.
 </p>
 
 <br>
 
 ---
 
-## The Problem
+## What This Is
 
-You paste a receipt into ChatGPT and say *"extract the merchant, amount, and category."* It works. Sometimes. Then:
+Non-engineers write AI agents, prompts and few shot examples in plain English-like syntax (it's like SQL for AI). Engineers plug them into real infrastructure. Both work from the same `.ai` file — readable, diffable, version controlled. Integrates with a fluent Python AI.
 
-- Run it again — different JSON keys
-- Change the wording — different categories
-- Hand it to a colleague — completely different output
-- Try to audit it — there's nothing to audit
+The language calls the LLM only when it needs judgment — extraction, classification, drafting — and runs everything else as deterministic code on the CPU: business rules, validation, schema enforcement. Every response comes back as structured, typed JSON. No surprises, no format drift, no prompt babysitting.
 
-**Prompts are stochastic. Schemas are deterministic.** AI DSL separates what needs AI judgment from what doesn't.
+Under the hood: a custom **parser**, **compiler**, and **runtime** turn 10 lines of declarative intent into production-grade AI pipelines with typed prompts, JSON schema constraints, few-shot examples, and response validation — all generated automatically from your schema.
 
 ---
 
-## 14 Lines. Typed. Auditable. Repeatable.
+## Two On-Ramps
+
+### `.ai` files — for analysts, ops, domain experts
 
 ```sql
 DEFINE expense:
@@ -45,169 +45,136 @@ FLAG WHEN category IS travel AND amount OVER 200
 OUTPUT expenses.json
 ```
 
-That's it. No Python. No YAML. No prompt engineering. The compiler handles:
+No Python. No YAML. No prompt engineering. Hand this to someone who's never written code — they can read it, modify it, and run it.
 
-- Typed prompt generation with JSON schema constraints
-- Few-shot examples injected automatically from plain-text files
-- Deterministic business rules that never touch the LLM
-- Schema validation on every response
+### Python API — for developers, pipelines, integration
+
+```python
+from aidsl import Pipeline, SchemaBuilder
+
+expense = (
+    SchemaBuilder("expense")
+    .text("merchant")
+    .money("amount")
+    .enum("category", ["travel", "meals", "equipment", "software", "office"])
+    .build()
+)
+
+results = (
+    Pipeline()
+    .source("receipts.csv")
+    .extract(expense)
+    .examples("expense_samples")
+    .flag("amount OVER 500")
+    .flag("category IS travel AND amount OVER 200")
+    .set(model="gpt-4.1", temperature=0, seed=42)
+    .output("expenses.json")
+    .run()
+)
+```
+
+Same compiler, same runtime, same guarantees. Embed it in FastAPI, Celery, cron jobs, notebooks — whatever you already use.
 
 ---
 
-## How It Works
+## What the Compiler Does for You
 
-```
-                    ┌─────────────┐
-                    │   .ai file  │  ← You write this
-                    └──────┬──────┘
-                           │
-                    ┌──────▼──────┐
-                    │   Parser    │  ← Reads your DSL
-                    └──────┬──────┘
-                           │
-                    ┌──────▼──────┐
-                    │  Compiler   │  ← Generates typed prompts + JSON schema
-                    └──────┬──────┘
-                           │
-              ┌────────────┼────────────┐
-              │                         │
-     ┌────────▼────────┐    ┌───────────▼─────────┐
-     │   LLM Runtime   │    │   Flag Evaluator    │
-     │  (AI judgment)  │    │(deterministic rules)│
-     └────────┬────────┘    └───────────┬─────────┘
-              │                         │
-              └────────────┬────────────┘
-                           │
-                    ┌──────▼──────┐
-                    │   Output    │  ← Structured JSON
-                    └─────────────┘
-```
+You write 10 lines. The compiler handles:
 
-**Two worlds, clearly separated:**
+- **Typed prompt generation** — field descriptions, constraints, and output format instructions, all derived from your schema
+- **JSON schema enforcement** — every LLM response is validated against a generated schema before it reaches your output
+- **Few-shot examples** — plain-text `.examples` files are formatted and prepended to prompts automatically
+- **Prompt context** — `.prompt` files inject domain knowledge and tone without touching structure
+- **Deterministic rules** — `FLAG WHEN` conditions run as pure code, no LLM involved, identical every time
+- **Multi-verb pipelines** — chain `EXTRACT` or `CLASSIFY` with `DRAFT` to go from raw text to structured data to generated responses in one pass
+
+---
+
+## Separation of Concerns
+
+The design enforces a clean split between AI judgment and deterministic logic:
 
 | AI (stochastic) | Rules (deterministic) |
 |---|---|
-| EXTRACT, CLASSIFY | FLAG WHEN |
-| Needs LLM | Pure code, no LLM |
+| `EXTRACT`, `CLASSIFY`, `DRAFT` | `FLAG WHEN`, validation, schemas |
+| Needs an LLM | Pure code, no LLM |
 | Costs money per call | Free |
 | Variable by nature | Identical every run |
 
+Business rules never touch the LLM. Only the parts that genuinely require judgment use AI. This is why a 10-line `.ai` file produces more consistent results than a carefully written prompt.
+
 ---
 
-## Features
+## Prompt and Examples as Convention
 
-### Verbs — What AI Does
+Prompts and few-shot examples live alongside your `.ai` files in a conventional folder structure:
 
-| Verb | Purpose | Example |
-|------|---------|---------|
-| `EXTRACT` | Pull structured fields from text | `EXTRACT expense` |
-| `CLASSIFY` | Assign a category from a set | `CLASSIFY type INTO [a, b, c]` |
+```
+project/
+  pipeline.ai              # structure, types, rules, flow
+  prompts/
+    insurance_context.prompt   # tone, domain knowledge, instructions
+  examples/
+    expense_samples.examples   # input/output pairs for few-shot learning
+```
 
-### Types — What Data Looks Like
+The `.ai` file owns **what** to extract. The `.prompt` file owns **how** to talk. The `.examples` file teaches **by showing**. All plain text. All version controlled. All diffable.
 
-| Type | Description | Example |
-|------|-------------|---------|
-| `TEXT` | Free-form string | `merchant TEXT` |
-| `MONEY` | Dollar amount (numeric) | `amount MONEY` |
-| `NUMBER` | Numeric value | `score NUMBER` |
-| `YES/NO` | Boolean | `approved YES/NO` |
-| `ONE OF [...]` | Constrained enum | `category ONE OF [a, b, c]` |
+---
 
-### Modifiers — What Controls Behavior
+## Agent Pattern
 
-| Modifier | Purpose | Example |
-|----------|---------|---------|
-| `FLAG WHEN` | Deterministic business rule | `FLAG WHEN amount OVER 500` |
-| `PROMPT` | Named prompt context | `EXTRACT x PROMPT my_context` |
-| `EXAMPLES` | Few-shot examples | `EXTRACT x EXAMPLES my_samples` |
+The parser/compiler/runtime are just Python — wrap them in 30 lines and you have an agent:
+
+```
+inbox/          →  run_agent.py  →  output/clean/
+  receipt1.txt                      output/flagged/
+  receipt2.txt                      output/errors/
+  invoice.pdf                       output/audit/log.jsonl
+```
+
+Drop files in a folder. Run on a cron schedule. Results split by outcome. Every run appends an audit log. The `.ai` file **is** the agent's brain — swap it to change behavior without touching code.
+
+---
+
+## Pluggable by Design
+
+AI DSL owns the **language and compilation** layer. It doesn't own your infrastructure:
+
+- **LLM provider** — anything with an OpenAI-compatible chat endpoint (GitHub Models, OpenAI, Azure, local)
+- **Sources** — CSV, JSON files, folders of documents, HTTPS APIs with auth headers
+- **Sinks** — JSON output today, but `run()` returns plain dicts — route them anywhere
+- **Orchestration** — the Python API is a library, not a framework. Call it from FastAPI, Django, Celery, Airflow, Lambda, a Jupyter notebook, or a shell script
+
+The same `.ai` file works everywhere. Override `FROM`/`OUTPUT` at runtime to adapt to each environment.
 
 ---
 
 ## Quick Start
 
 ```bash
-# Clone and install
 git clone https://github.com/dljones555/aidsl.git
-cd aidsl
-uv sync
+cd aidsl && uv sync
 
-# Set your API token (GitHub Models — free with any GitHub PAT)
-export GITHUB_TOKEN=your_token_here
+export GITHUB_TOKEN=your_token_here    # GitHub Models — free with any GitHub PAT
 
-# Run the expense processor
 uv run python -m aidsl run examples/expense.ai
 ```
-
----
-
-## Prompt Library
-
-**PROMPT** loads a `.prompt` file — system context for tone and domain knowledge:
-
-```
-# prompts/insurance_context.prompt
-
-You are a claims processor for a large insurance company.
-Policy types include auto, home, life, and commercial.
-Be precise with categorization.
-```
-
-**EXAMPLES** loads a `.examples` file — few-shot input/output pairs:
-
-```
-# examples/expense_samples.examples
-
-INPUT: Uber ride to airport, $47.50
-OUTPUT: {"merchant": "Uber", "amount": 47.50, "category": "travel"}
-
-INPUT: MacBook Pro from Apple Store, $2499.00
-OUTPUT: {"merchant": "Apple Store", "amount": 2499.00, "category": "equipment"}
-```
-
-Both are plain text. Version controlled. Diffable. Auditable.
-
-The `.ai` file owns structure. The `.prompt` file owns tone. The `.examples` file teaches by showing.
-
----
-
-## Real Example: Ticket Triage
-
-```sql
-FROM tickets.csv
-CLASSIFY type INTO [policy, claim, inquiry, complaint]
-  PROMPT insurance_context EXAMPLES ticket_samples
-FLAG WHEN type IS complaint
-OUTPUT classified.json
-```
-
-This reads support tickets, classifies each one using domain context and few-shot examples, flags complaints for escalation, and writes structured JSON — all in 5 lines.
-
----
-
-## Why Not Just Use Prompts?
-
-| | Raw Prompts | AI DSL |
-|---|---|---|
-| **Output format** | Whatever the LLM feels like | Schema-constrained JSON |
-| **Business rules** | Baked into prompt (unreliable) | Deterministic code (FLAG WHEN) |
-| **Consistency** | Varies run to run | Typed, validated, repeatable |
-| **Audit trail** | Copy-paste from chat | Versioned .ai files |
-| **Who can write it** | Prompt engineers | Anyone who can read SQL |
-| **Few-shot examples** | Manual copy-paste | Named, reusable .examples files |
 
 ---
 
 ## Development
 
 ```bash
-uv run pytest -v          # 70 tests
+uv run pytest -v          # 165 tests
 uv run ruff check .       # lint
 uv run ruff format .      # format
 ```
 
 ---
 
-<p align="center">
-  <strong>Schema Labs</strong><br>
-  <em>Structure beats English.</em>
-</p>
+## License
+
+Business Source License 1.1 — free for non-production use. Commercial or production use requires a license. See [LICENSE](LICENSE) for full terms.
+
+Interested in using AI DSL commercially, or want to collaborate on the ideas here? Reach out to [dljones555](https://github.com/dljones555).
