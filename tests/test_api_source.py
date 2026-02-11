@@ -49,10 +49,14 @@ def test_load_api_source_with_headers(tmp_path):
         mock_client.get.return_value = mock_resp
         mock_client_cls.return_value = mock_client
 
-        rows = _load_source(tmp_path, source_str="https://api.example.com/data", headers=headers)
+        rows = _load_source(
+            tmp_path, source_str="https://api.example.com/data", headers=headers
+        )
 
         # Verify headers were passed
-        mock_client.get.assert_called_once_with("https://api.example.com/data", headers=headers)
+        mock_client.get.assert_called_once_with(
+            "https://api.example.com/data", headers=headers
+        )
         assert len(rows) == 1
 
 

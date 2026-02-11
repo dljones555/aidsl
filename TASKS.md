@@ -75,31 +75,14 @@ Each task is scoped to one focused session. Model recommendation in brackets.
   - Example: expense.ai updated with SET MODEL gpt-4.1, TEMPERATURE 0, SEED 42
   - Tests: 13 tests — parser, compiler passthrough, runtime apply (test_set.py)
 
-- [ ] **T08** [Sonnet] Add compile-time validation
-  - Check schema references exist (EXTRACT names a defined schema)
-  - Check FLAG WHEN fields exist in the schema
-  - Check enum values in FLAG conditions match schema enums
-  - Report errors with line numbers
-  - Tests: each validation error type
-
-- [ ] **T09** [Sonnet] Compiler-chosen inference params per verb
-  - EXTRACT, CLASSIFY: temp 0, fixed seed (precision)
-  - DRAFT: temp 0.7 (creative)
-  - SET block overrides these defaults
-  - Tests: verify params in execution plan per verb type
-
-## Day 3 — Sources, Sinks, and Demos
-
-- [ ] **T10** [Sonnet] JSON input/output support
-  - FROM detects .json files, reads as list of records
-  - OUTPUT detects .json/.csv by extension, writes accordingly
-  - Tests: round-trip JSON, CSV output format
-
-- [ ] **T11** [Sonnet] One API source example
-  - FROM supports https:// URLs
-  - Parser: HEADER keyword for auth
-  - Runtime: httpx GET, parse JSON response as records
-  - Tests: mock httpx for the API call
+- [x] **T10+T11** [Sonnet] JSON file source + HTTPS API source ✓
+  - JSON files: array or single object, auto-detected by .json extension
+  - Folders: .json files parsed (arrays flattened), .txt kept as text blobs
+  - HTTPS API: FROM https://... does GET, parses JSON response as records
+  - SET HEADER for API auth (e.g. SET HEADER Authorization Bearer token)
+  - Query params work in URL (e.g. ?per_page=5)
+  - Examples: tickets.json, tickets_json.ai, api_demo.ai, api_public.ai, api_github.ai
+  - Tests: 13 tests — JSON source (7), API source (6)
 
 - [ ] **T12** [Sonnet] Build consistency comparison script
   - Run same extraction 5x with raw prompt (no schema)
@@ -151,7 +134,7 @@ Items below are scoped but not scheduled. Pull into a sprint day when ready.
   - One file change (parser.py), ~15 touch points
   - Use `upper = stripped.upper()` for keyword matching, preserve original case for values
 
-- [ ] **PBI-PYTHON-API** Composable fluent Python API (LINQ-style)
+- [X] **PBI-PYTHON-API** Composable fluent Python API (LINQ-style)
   - Thin builder layer: `Schema("invoice").text("vendor").money("total").list_of("items", line_item)`
   - Chainable pipeline: `Pipeline().source(...).extract(...).flag(...).output(...).run()`
   - Builds Program AST directly — same compiler/runtime underneath, zero new infra
@@ -159,3 +142,66 @@ Items below are scoped but not scheduled. Pull into a sprint day when ready.
   - Two on-ramps: .ai files for analysts, Python API for developers
   - `.run_one(text)` for single-record processing (API/webhook use case)
   - ~150 lines estimated — builder classes over existing Program/Schema dataclasses
+
+- [ ] **PBI-COMPILE-VALIDATION** Compile-time validation (was T08)
+  - Check schema references exist (EXTRACT names a defined schema)
+  - Check FLAG WHEN fields exist in the schema
+  - Check enum values in FLAG conditions match schema enums
+  - Report errors with line numbers
+
+- [ ] **PBI-VERB-PARAMS** Compiler-chosen inference params per verb (was T09)
+  - EXTRACT, CLASSIFY: temp 0, fixed seed (precision)
+  - DRAFT: temp 0.7 (creative)
+  - SET block overrides these defaults
+
+- [ ] **PBI-PDF-IMAGE** PDF and image ingestion
+  - FROM supports .pdf files (OCR/text extraction before LLM)
+  - FROM supports image files (.png, .jpg) via OCR or vision model
+  - Plugin architecture: `FROM invoices/ USING tesseract` or similar
+  - Core question: build OCR or integrate (Tesseract, Azure Doc Intelligence, AWS Textract)
+  - This is the #1 customer-facing gap — invoices and receipts are PDFs/images, not CSV
+
+- [ ] **PBI-OUTPUT-FORMATS** Flexible output sinks
+  - OUTPUT detects .json/.csv by extension, writes accordingly
+  - CSV output with headers from schema fields
+  - Webhook/API POST output (send results to endpoint)
+  - Database output (SQLite, PostgreSQL via connection string)
+
+- [ ] **PBI-COST-CONTROL** Token usage and cost guardrails
+  - Track token usage per run (input/output tokens)
+  - SET MAX_TOKENS, SET MAX_COST budget limits
+  - Dry run mode: show what would be processed without calling LLM
+  - Per-row token estimates before execution
+
+- [ ] **PBI-PAGINATION** API pagination support
+  - Handle paginated API responses (next page links, offset/limit)
+  - SET PAGE_SIZE, SET MAX_PAGES controls
+  - Auto-follow Link headers or cursor-based pagination
+
+- [ ] **PBI-ERROR-RECOVERY** Partial failure and retry
+  - Resume from last successful row on failure
+  - Checkpoint file for long-running batch jobs
+  - Per-row error capture without aborting the whole run
+  - Ties into PBI-INBOX (retry semantics)
+
+- [ ] **PBI-COMPLIANCE** Regulated environment support
+  - SET ENDPOINT for self-hosted / private LLM endpoints (Azure OpenAI, on-prem)
+  - REDACT keyword: mask PII fields before sending to LLM, restore after
+  - Audit logging: full request/response trail per row
+  - RBAC: who can run which .ai files, who approves flagged records
+  - Encryption at rest for output files
+  - Structural advantages already in place: deterministic FLAG WHEN, schema constraints, .ai file as audit artifact
+
+- [ ] **PBI-PERFORMANCE** Scale and throughput
+  - Concurrent/parallel LLM calls (async httpx, configurable concurrency)
+  - Streaming output: write results as they complete, not all at end
+  - Large file handling: chunked reading for big CSVs/JSON
+  - Progress bar / ETA for batch runs
+
+- [ ] **PBI-KEYWORD-CLARITY** Rename WITH/USE keywords for readability
+  - WITH is unclear — doesn't convey "prompt template"; consider WITH_PROMPT or PROMPT
+  - USE is unclear — doesn't convey "few-shot examples"; consider USE_EXAMPLES or EXAMPLES
+  - Current syntax: `EXTRACT expense WITH context USE samples`
+  - Proposed: `EXTRACT expense PROMPT context EXAMPLES samples` (or similar)
+  - Must update: parser, compiler, all .ai examples, tests, Python API (.with_prompt/.use_examples)
+  - Breaking change — needs migration path or deprecation period

@@ -1,5 +1,7 @@
 -- Support ticket classifier
 -- Routes incoming tickets to the right team
+-- WITH pulls in a prompt 
+-- USE pulls in few shot examples
 
 FROM tickets.csv
 CLASSIFY type INTO [policy, claim, inquiry, complaint]

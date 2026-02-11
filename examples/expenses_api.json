@@ -1,0 +1,73 @@
+[
+  {
+    "merchant": "Uber",
+    "amount": 47.5,
+    "category": "travel",
+    "_flagged": false,
+    "_flag_reasons": [],
+    "_source": "Uber ride to airport, $47.50"
+  },
+  {
+    "merchant": "Chipotle",
+    "amount": 89.2,
+    "category": "meals",
+    "_flagged": false,
+    "_flag_reasons": [],
+    "_source": "Team lunch at Chipotle, total was $89.20 for 4 people"
+  },
+  {
+    "merchant": "Apple Store",
+    "amount": 2499.0,
+    "category": "equipment",
+    "_flagged": true,
+    "_flag_reasons": [
+      "amount OVER 500"
+    ],
+    "_source": "MacBook Pro purchase from Apple Store, $2499.00"
+  },
+  {
+    "merchant": "GitHub",
+    "amount": 21.0,
+    "category": "software",
+    "_flagged": false,
+    "_flag_reasons": [],
+    "_source": "Monthly GitHub Teams subscription, $21.00 per month"
+  },
+  {
+    "merchant": "Marriott downtown",
+    "amount": 687.0,
+    "category": "travel",
+    "_flagged": true,
+    "_flag_reasons": [
+      "amount OVER 500",
+      "category IS travel AND amount OVER 200"
+    ],
+    "_source": "Hotel stay at Marriott downtown, 3 nights, total $687.00"
+  },
+  {
+    "merchant": "Staples",
+    "amount": 34.99,
+    "category": "office",
+    "_flagged": false,
+    "_flag_reasons": [],
+    "_source": "Staples - printer paper and toner, $34.99"
+  },
+  {
+    "merchant": "Delta",
+    "amount": 412.0,
+    "category": "travel",
+    "_flagged": true,
+    "_flag_reasons": [
+      "category IS travel AND amount OVER 200"
+    ],
+    "_source": "Delta flight to NYC, round trip $412.00"
+  },
+  {
+    "merchant": "Starbucks",
+    "amount": 27.5,
+    "category": "meals",
+    "_flagged": false,
+    "_flag_reasons": [],
+    "_source": "Coffee and pastries meeting at Starbucks, $27.50"
+  }
+]

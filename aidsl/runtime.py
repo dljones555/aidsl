@@ -25,7 +25,9 @@ def run(plan: ExecutionPlan, base_dir: str = ".") -> list[dict]:
 
     # Handle API sources (https://) vs file sources
     if plan.source.startswith("https://"):
-        rows = _load_source(Path(), source_str=plan.source, headers=plan.settings.headers)
+        rows = _load_source(
+            Path(), source_str=plan.source, headers=plan.settings.headers
+        )
     else:
         source_path = Path(base_dir) / plan.source
         if not source_path.exists():
@@ -71,7 +73,9 @@ def run(plan: ExecutionPlan, base_dir: str = ".") -> list[dict]:
             flags = plan.flag_evaluator.evaluate(record)
             record["_flagged"] = len(flags) > 0
             record["_flag_reasons"] = flags
-            record["_source"] = row.get("text", {k: v for k, v in row.items() if not k.startswith("_")})
+            record["_source"] = row.get(
+                "text", {k: v for k, v in row.items() if not k.startswith("_")}
+            )
 
             status = "FLAGGED" if flags else "OK"
             flag_info = f" ({', '.join(flags)})" if flags else ""
@@ -80,7 +84,14 @@ def run(plan: ExecutionPlan, base_dir: str = ".") -> list[dict]:
             results.append(record)
         else:
             print("           FAILED")
-            results.append({"_source": row.get("text", {k: v for k, v in row.items() if not k.startswith("_")}), "_error": "extraction failed"})
+            results.append(
+                {
+                    "_source": row.get(
+                        "text", {k: v for k, v in row.items() if not k.startswith("_")}
+                    ),
+                    "_error": "extraction failed",
+                }
+            )
 
     # Write output
     output_path = Path(base_dir) / plan.output
@@ -113,7 +124,9 @@ def _row_to_text(row: dict) -> str:
     return json.dumps(clean) if clean else ""
 
 
-def _load_source(source_path: Path, source_str: str = "", headers: dict | None = None) -> list[dict]:
+def _load_source(
+    source_path: Path, source_str: str = "", headers: dict | None = None
+) -> list[dict]:
     """Load input rows from CSV, JSON file, folder, or HTTPS API.
 
     CSV: standard DictReader — works with any column layout.
