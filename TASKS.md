@@ -198,6 +198,13 @@ Items below are scoped but not scheduled. Pull into a sprint day when ready.
   - Large file handling: chunked reading for big CSVs/JSON
   - Progress bar / ETA for batch runs
 
+- [ ] **PBI-RUNTIME-CONFIG** Decouple source/output paths from .ai file definitions
+  - Runtime config layer so .ai files are portable across environments
+  - FROM/OUTPUT become overridable at invocation time
+  - e.g. `aidsl run pipeline.ai --from inbox/ --output output/`
+  - .ai file defines defaults; CLI flags or Python API kwargs override them
+  - Enables same pipeline.ai for dev (local folders) and prod (S3, API, etc.)
+
 - [ ] **PBI-KEYWORD-CLARITY** Rename WITH/USE keywords for readability
   - WITH is unclear — doesn't convey "prompt template"; consider WITH_PROMPT or PROMPT
   - USE is unclear — doesn't convey "few-shot examples"; consider USE_EXAMPLES or EXAMPLES

@@ -7,3 +7,9 @@ build/
 uv.lock
 examples/expenses.json
 examples/raw_output.json
+examples/agent_demo/output/clean/*
+examples/agent_demo/output/flagged/*
+examples/agent_demo/output/errors/*
+examples/agent_demo/output/audit/*
+examples/agent_demo/output/latest.json
+!examples/agent_demo/output/**/.gitkeep
