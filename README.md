@@ -9,7 +9,7 @@
 <h1 align="center">AI DSL</h1>
 
 <p align="center">
-  <strong>Structure beats English.</strong><br>
+  <strong>When Structure Matters.</strong><br>
   An AI concepts first DSL with a parser, compiler, and runtime that turns<br>
   10 lines of declarative intent into repeatable, schema-constrained AI workflows.
 </p>
