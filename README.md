@@ -9,7 +9,7 @@
 <h1 align="center">AI DSL</h1>
 
 <p align="center">
-  <strong>When Structure Matters.</strong><br>
+  <strong>When Structure Matters</strong><br>
   An AI concepts first DSL with a parser, compiler, and runtime that turns<br>
   10 lines of declarative intent into repeatable, schema-constrained AI workflows.
 </p>
@@ -20,7 +20,7 @@
 
 ## What This Is
 
-Non-engineers write AI agents, prompts and few shot examples in plain English-like syntax (it's like SQL for AI). Engineers plug them into real infrastructure. Both work from the same `.ai` file — readable, diffable, version controlled. Integrates with a fluent Python AI.
+Non-engineers write AI agents, prompts and few shot examples in plain English-like syntax (it's like SQL for AI). Engineers plug them into real infrastructure. Both work from the same `.ai` file — readable, diffable, version controlled. Includes a fluent Python API. Hybrid orchestration with compute best fit to CPU or GPU.
 
 The language calls the LLM only when it needs judgment — extraction, classification, drafting — and runs everything else as deterministic code on the CPU: business rules, validation, schema enforcement. Every response comes back as structured, typed JSON. No surprises, no format drift, no prompt babysitting.
 
