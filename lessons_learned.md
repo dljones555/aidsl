@@ -45,7 +45,7 @@
 - The execution plan is an **audit artifact** spanning CPU, GPU, compute cost, energy cost, and human-in-the-loop factors. Not just "what did the LLM do" but "what resources were consumed and who reviewed it."
 
 ### Ideation Sources
-- **Karpathy and Thomas Wolf X posts** (2/16/2026) — ideas around AI tooling, workflows, and accessibility. Resonates with the low-code gap thesis.
+- **Karpathy ([post](https://x.com/karpathy/status/2023476423055601903)) and Thomas Wolf ([post](https://x.com/Thom_Wolf/status/2023387043967959138)) (2/16/2026)** — Both point toward typed, formally verifiable languages winning as LLMs reshape software. The DSL's schema enforcement, compile-time GPU/CPU boundary, and execution plan as audit artifact align with this direction — not as a programming language, but as a specification language for constraining LLM behavior. The durable insight is the pattern (boundary detection, audit trails), not the tool — which holds up if, as Karpathy predicts, large fractions of software get rewritten many times over.
 - **Grok/X ideation session re: Medicaid dataset** — explored applying the DSL pattern to Medicaid data processing. Government/healthcare datasets are a natural fit: regulated, structured, high-volume, manual review burden. Python patterns and existing tools worked well for prototyping.
 
 ### Market Question: Cost Tier Gap
