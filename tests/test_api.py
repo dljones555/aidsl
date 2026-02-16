@@ -40,6 +40,45 @@ def test_schema_builder_basic_fields():
     assert schema.fields[4].enum_values == ["travel", "meals", "equipment"]
 
 
+def test_from_json_with_dict():
+    schema = SchemaBuilder.from_json(
+        {
+            "name": "claim",
+            "fields": {
+                "claimant": "text",
+                "amount": "money",
+                "count": "number",
+                "disputed": "bool",
+                "claim_type": ["auto", "property", "health"],
+            },
+        }
+    )
+    assert schema.name == "claim"
+    assert len(schema.fields) == 5
+    assert schema.fields[0].type == "TEXT"
+    assert schema.fields[1].type == "MONEY"
+    assert schema.fields[2].type == "NUMBER"
+    assert schema.fields[3].type == "BOOL"
+    assert schema.fields[4].type == "ENUM"
+    assert schema.fields[4].enum_values == ["auto", "property", "health"]
+
+
+def test_from_json_with_file(tmp_path):
+    import json
+
+    spec = {"name": "item", "fields": {"name": "text", "price": "money"}}
+    f = tmp_path / "schema.json"
+    f.write_text(json.dumps(spec))
+    schema = SchemaBuilder.from_json(str(f))
+    assert schema.name == "item"
+    assert len(schema.fields) == 2
+
+
+def test_from_json_unknown_type_raises():
+    with pytest.raises(ValueError, match="Unknown type"):
+        SchemaBuilder.from_json({"name": "bad", "fields": {"x": "blob"}})
+
+
 def test_schema_builder_nested_list_of():
     line_item = SchemaBuilder("line_item").text("desc").money("price").build()
     invoice = (

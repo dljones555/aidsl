@@ -33,47 +33,71 @@ Under the hood: a custom **parser**, **compiler**, and **runtime** turn 10 lines
 ### `.ai` files — for analysts, ops, domain experts
 
 ```sql
-DEFINE expense:
-  merchant    TEXT
-  amount      MONEY
-  category    ONE OF [travel, meals, equipment, software, office]
+-- Insurance claim intake → extract → draft response → flag policy violations
 
-FROM receipts.csv
-EXTRACT expense EXAMPLES expense_samples
-FLAG WHEN amount OVER 500
-FLAG WHEN category IS travel AND amount OVER 200
-OUTPUT expenses.json
+SET MODEL gpt-4.1
+SET TEMPERATURE 0
+SET SEED 42
+
+DEFINE line_item:
+  description   TEXT
+  amount        MONEY
+
+DEFINE claim:
+  claimant      TEXT
+  policy_number TEXT
+  claim_amount  MONEY
+  num_items     NUMBER
+  is_disputed   YES/NO
+  claim_type    ONE OF [auto, property, health, liability]
+  items         LIST OF line_item
+
+FROM claims/
+EXTRACT claim PROMPT insurance_context EXAMPLES claim_samples
+DRAFT response PROMPT claim_acknowledgment
+FLAG WHEN claim_amount OVER 10000
+FLAG WHEN is_disputed IS true
+FLAG WHEN claim_type IS liability AND claim_amount OVER 5000
+OUTPUT processed_claims.json
 ```
 
-No Python. No YAML. No prompt engineering. Hand this to someone who's never written code — they can read it, modify it, and run it.
+Every feature in one file: inference config (`SET`), nested types (`LIST OF`), all 5 field types, multi-source input, prompt and few-shot injection, multi-verb pipeline (`EXTRACT` → `DRAFT`), compound business rules (`FLAG WHEN ... AND ...`), and structured output. No Python. No YAML. No prompt engineering. Hand this to someone who's never written code — they can read it, modify it, and run it.
 
 ### Python API — for developers, pipelines, integration
 
 ```python
 from aidsl import Pipeline, SchemaBuilder
 
-expense = (
-    SchemaBuilder("expense")
-    .text("merchant")
-    .money("amount")
-    .enum("category", ["travel", "meals", "equipment", "software", "office"])
-    .build()
-)
+# Load schema from a JSON file — or pass a dict inline
+claim = SchemaBuilder.from_json("schemas/claim.json")
+
+# Same schema defined inline, no file needed
+claim = SchemaBuilder.from_json({
+    "name": "claim",
+    "fields": {
+        "claimant":      "text",
+        "policy_number": "text",
+        "claim_amount":  "money",
+        "num_items":     "number",
+        "is_disputed":   "bool",
+        "claim_type":    ["auto", "property", "health", "liability"],
+    }
+})
 
 results = (
     Pipeline()
-    .source("receipts.csv")
-    .extract(expense)
-    .examples("expense_samples")
-    .flag("amount OVER 500")
-    .flag("category IS travel AND amount OVER 200")
+    .source("claims/")
+    .extract(claim)
+    .flag("claim_amount OVER 10000")
+    .flag("is_disputed IS true")
+    .flag("claim_type IS liability AND claim_amount OVER 5000")
     .set(model="gpt-4.1", temperature=0, seed=42)
-    .output("expenses.json")
+    .output("processed_claims.json")
     .run()
 )
 ```
 
-Same compiler, same runtime, same guarantees. Embed it in FastAPI, Celery, cron jobs, notebooks — whatever you already use.
+Same compiler, same runtime, same guarantees. `from_json` accepts a file path or a dict — bring schemas from external systems, config files, or define them inline. Embed it in FastAPI, Celery, cron jobs, notebooks — whatever you already use.
 
 ---
 

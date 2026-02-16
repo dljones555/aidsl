@@ -1,0 +1,27 @@
+-- Showcase: every DSL feature in one pipeline
+-- Insurance claim intake → extract → draft response → flag policy violations
+
+SET MODEL gpt-4.1
+SET TEMPERATURE 0
+SET SEED 42
+
+DEFINE line_item:
+  description   TEXT
+  amount        MONEY
+
+DEFINE claim:
+  claimant      TEXT
+  policy_number TEXT
+  claim_amount  MONEY
+  num_items     NUMBER
+  is_disputed   YES/NO
+  claim_type    ONE OF [auto, property, health, liability]
+  items         LIST OF line_item
+
+FROM claims/
+EXTRACT claim PROMPT insurance_context EXAMPLES claim_samples
+DRAFT response PROMPT claim_acknowledgment
+FLAG WHEN claim_amount OVER 10000
+FLAG WHEN is_disputed IS true
+FLAG WHEN claim_type IS liability AND claim_amount OVER 5000
+OUTPUT processed_claims.json
