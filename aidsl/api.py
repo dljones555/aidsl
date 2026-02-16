@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 import os
+from pathlib import Path
 
 import httpx
 
@@ -75,6 +76,43 @@ class SchemaBuilder:
         # Stash deps on the schema object so Pipeline can collect them
         schema._deps = dict(self._deps)  # type: ignore[attr-defined]
         return schema
+
+    @classmethod
+    def from_json(cls, source: str | dict) -> Schema:
+        """Build a Schema from a JSON file path or a dict.
+
+        Expected format::
+
+            {"name": "claim", "fields": {"claimant": "text", "amount": "money"}}
+
+        Supported type strings: text, money, number, bool.
+        For enums, use a list: ``{"category": ["auto", "property", "health"]}``.
+        """
+        if isinstance(source, (str, Path)):
+            with open(source) as f:
+                spec = json.load(f)
+        else:
+            spec = source
+
+        _type_map = {
+            "text": "TEXT",
+            "money": "MONEY",
+            "number": "NUMBER",
+            "bool": "BOOL",
+        }
+
+        builder = cls(spec["name"])
+        for field_name, field_type in spec["fields"].items():
+            if isinstance(field_type, list):
+                builder.enum(field_name, field_type)
+            else:
+                mapped = _type_map.get(field_type.lower())
+                if mapped is None:
+                    raise ValueError(
+                        f"Unknown type '{field_type}' for field '{field_name}'"
+                    )
+                builder._fields.append(FieldDef(field_name, mapped))
+        return builder.build()
 
 
 class Pipeline:
