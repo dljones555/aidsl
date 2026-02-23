@@ -1,0 +1,69 @@
+SET ROBOTS homebot1, homebot2
+SET MODE safe_autonomy
+SET TEMPERATURE 0
+
+DEFINE presence:
+    kids YES/NO
+    seniors YES/NO
+    pets YES/NO
+
+DEFINE cleaning_task:
+    room ONE OF [kitchen, living_room, hallway, bedrooms]
+    method ONE OF [vacuum, sweep, wipe]
+    priority NUMBER
+    avoid_noise WHEN presence.kids OR presence.seniors
+
+DEFINE lawn_zone:
+    name TEXT
+    boundary POLYGON
+    no_mow WHEN presence.kids OR presence.pets
+
+FROM sensors/presence_stream
+EXTRACT presence
+
+FROM household/cleaning_schedule.json
+EXTRACT cleaning_task
+
+FROM yard/zones.json
+EXTRACT lawn_zone
+
+RULE WHEN presence.kids IS true:
+    LIMIT robot_speed TO 0.3
+    REQUIRE voice_confirmation FOR hazardous_actions
+
+RULE WHEN presence.seniors IS true:
+    ENABLE fall_detection_monitoring
+    PRIORITIZE quiet_cleaning_methods
+
+RULE WHEN presence.pets IS true:
+    AVOID pet_locations WITH radius 1.5m
+    DISABLE chemical_cleaners
+
+TASK clean_home:
+    FOR EACH cleaning_task
+        ASSIGN TO homebot1
+        EXECUTE cleaning_task
+        LOG TO home_history.json
+
+TASK mow_lawn:
+    FOR EACH lawn_zone
+        IF lawn_zone.no_mow IS false
+            ASSIGN TO homebot2
+            MOW boundary lawn_zone.boundary
+            LOG TO yard_history.json
+
+DEMONSTRATE folding_towels
+    RECORD 3 SESSIONS
+    TRAIN SKILL towel_folding
+    CONFIDENCE TARGET 0.92
+
+TASK fold_laundry:
+    USE SKILL towel_folding
+    EXECUTE WHEN laundry_ready.json
+
+SCHEDULE:
+    RUN clean_home EVERY DAY AT 09:00
+    RUN mow_lawn EVERY SATURDAY AT 08:00
+    RUN fold_laundry WHEN laundry_ready.json
+
+OUTPUT robot_activity_log.json

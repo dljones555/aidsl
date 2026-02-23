@@ -1,0 +1,145 @@
+SET MODEL gpt-4.1
+SET TEMPERATURE 0
+SET SEED 42
+
+SET PROFILE "BOB":
+    CHURCH_HOME "CITY_CHURCH"
+    GROUPS ["MEN'S_GROUP", "MIDWEEK_STUDY", "SERVE_TEAM"]
+    MINISTRIES ["USHER_TEAM", "OUTREACH", "PRAYER_TEAM"]
+    GIVING_METHODS ["TITHELY", "CHURCH_CENTER"]
+    SPIRITUAL_DISCIPLINES:
+        - "BIBLE_READING"
+        - "PRAYER"
+        - "FASTING"
+        - "SABBATH"
+    PREFERRED_STUDY_PLAN "BIBLE_IN_ONE_YEAR"
+
+SET CALENDAR:
+    SYNC GOOGLE_CALENDAR
+    SYNC CHURCH_CENTER_EVENTS
+    SYNC GROUPME_EVENTS
+
+SET EMAIL:
+    WATCH INBOX FOR:
+        - "church"
+        - "ministry"
+        - "serve"
+        - "prayer"
+        - "devotional"
+        - "group"
+    LABEL AUTOMATICALLY:
+        - "SERVING"
+        - "GROUPS"
+        - "EVENTS"
+        - "GIVING"
+        - "PRAYER_REQUESTS"
+
+SET NOTIFICATION_POLICY:
+    DURING SABBATH_WINDOW ("SAT 18:00" TO "SUN 18:00"):
+        ROUTE NON_ESSENTIAL TO "MONDAY_DIGEST"
+        ALLOW ONLY:
+            - SERVICE_REMINDERS
+            - PRAYER_REQUESTS
+            - FAMILY_NOTIFICATIONS
+
+AUDIT:
+    LOG EVENTS TO logs/church_life.json
+    LOG EMAIL_ACTIONS TO logs/email.json
+    LOG CALENDAR_UPDATES TO logs/calendar.json
+
+# -----------------------------
+# Domain Types
+# -----------------------------
+
+DEFINE church_event:
+    title TEXT
+    ministry TEXT
+    location TEXT
+    start DATETIME
+    end DATETIME
+    required YES/NO
+
+DEFINE prayer_request:
+    sender TEXT
+    content TEXT
+    urgency ONE OF [low, medium, high]
+    timestamp DATETIME
+
+DEFINE discipline_checkin:
+    type ONE OF ["BIBLE_READING", "PRAYER", "FASTING"]
+    completed YES/NO
+    timestamp DATETIME
+
+# -----------------------------
+# Sources
+# -----------------------------
+
+FROM email/inbox
+EXTRACT church_event USING PROMPT church_event_extraction
+EXTRACT prayer_request USING PROMPT prayer_request_extraction
+
+FROM apps/bible_reading_plan.json
+EXTRACT discipline_checkin
+
+FROM church_center/events.json
+EXTRACT church_event
+
+# -----------------------------
+# Stages
+# -----------------------------
+
+STAGE update_calendar:
+    FROM church_event
+    IF church_event.required == YES:
+        ADD TO CALENDAR
+    ELSE:
+        SUGGEST TO USER
+
+STAGE organize_prayer_requests:
+    FROM prayer_request
+    SORT BY urgency
+    GROUP BY sender
+    OUTPUT TO "PRAYER_LIST"
+
+STAGE track_disciplines:
+    FROM discipline_checkin
+    WHEN discipline_checkin.completed == NO:
+        REMIND USER WITH gentle_prompt
+
+STAGE serving_rotation:
+    FROM church_event
+    WHEN church_event.ministry IN PROFILE("DAVID").MINISTRIES:
+        SET REMINDER 24 HOURS BEFORE
+        SET REMINDER 2 HOURS BEFORE
+
+STAGE giving_cycle:
+    RUN WEEKLY ON "SUNDAY 08:00"
+    CHECK GIVING_METHODS
+    SUMMARIZE LAST_WEEK_GIVING
+    OUTPUT TO "WEEKLY_GIVING_SUMMARY"
+
+# -----------------------------
+# HITL
+# -----------------------------
+
+HITL confirm_event_add:
+    WHEN church_event.required == NO
+    ASK USER:
+        "Add this event to your calendar?"
+    REQUIRE DECISION ONE OF [yes, no]
+
+# -----------------------------
+# Mission Skill
+# -----------------------------
+
+SKILL christian_life_rhythm_agent:
+    RUN update_calendar CONTINUOUS
+    RUN organize_prayer_requests CONTINUOUS
+    RUN track_disciplines CONTINUOUS
+    RUN serving_rotation CONTINUOUS
+    RUN giving_cycle WEEKLY
+    ENABLE HITL confirm_event_add
+    OUTPUT:
+        prayer_list TO outputs/prayer.json
+        weekly_giving TO outputs/giving.json
+        calendar TO outputs/calendar.json

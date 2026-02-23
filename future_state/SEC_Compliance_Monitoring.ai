@@ -1,0 +1,178 @@
+SET MODEL gpt-4.1
+SET TEMPERATURE 0
+SET SEED 42
+
+SET ORG_PROFILE:
+    DEPARTMENTS ["LEGAL", "HR", "FINANCE", "TRADING", "IR", "ENGINEERING"]
+    REGULATORY_SCOPE:
+        - "SEC_DISCLOSURE"
+        - "INSIDER_TRADING"
+        - "ACCOUNTING_FRAUD"
+        - "WHISTLEBLOWER_PROTECTION"
+        - "RETALIATION_PROHIBITION"
+
+SET CHANNELS:
+    WATCH:
+        - email/corp_mailboxes
+        - chat/slack
+        - chat/teams
+        - hotline/whistleblower_portal
+        - ticket/compliance_system
+
+SET NOTIFICATION_POLICY:
+    HIGH_RISK:
+        ROUTE IMMEDIATELY TO ["LEGAL", "CHIEF_COMPLIANCE_OFFICER"]
+    RETALIATION_SIGNAL:
+        ROUTE IMMEDIATELY TO ["LEGAL", "HR"]
+    MEDIUM_RISK:
+        ADD TO "COMPLIANCE_REVIEW_QUEUE"
+    LOW_RISK:
+        ADD TO "WEEKLY_SUMMARY"
+
+AUDIT:
+    LOG ALL_FLAGS TO logs/sec_flags.json
+    LOG HITL_DECISIONS TO logs/sec_hitl.json
+    LOG ESCALATIONS TO logs/sec_escalations.json
+
+# -----------------------------
+# Domain Types
+# -----------------------------
+
+DEFINE message:
+    sender TEXT
+    recipients LIST OF TEXT
+    channel ONE OF [email, slack, teams, hotline, ticket]
+    content TEXT
+    timestamp DATETIME
+
+DEFINE potential_violation:
+    category ONE OF [
+        "insider_trading",
+        "material_nonpublic_info_misuse",
+        "accounting_irregularity",
+        "misleading_disclosure",
+        "books_and_records",
+        "whistleblower_retaliation",
+        "harassment_or_intimidation_of_reporter",
+        "other_compliance_concern",
+        "unknown"
+    ]
+    description TEXT
+    confidence NUMBER
+    severity ONE OF [low, medium, high]
+    related_persons LIST OF TEXT
+    source_channel TEXT
+    timestamp DATETIME
+
+DEFINE complaint:
+    reporter TEXT
+    content TEXT
+    anonymous YES/NO
+    channel ONE OF [hotline, email, ticket]
+    timestamp DATETIME
+
+# -----------------------------
+# Sources
+# -----------------------------
+
+FROM email/corp_mailboxes
+EXTRACT message USING PROMPT sec_message_extraction
+
+FROM chat/slack
+EXTRACT message
+
+FROM chat/teams
+EXTRACT message
+
+FROM hotline/whistleblower_portal
+EXTRACT complaint
+
+FROM ticket/compliance_system
+EXTRACT complaint
+
+# -----------------------------
+# Stages
+# -----------------------------
+
+STAGE detect_potential_violations:
+    FROM message
+    EXTRACT potential_violation USING PROMPT sec_violation_detection_context
+    WHEN potential_violation.category != "unknown"
+        AND potential_violation.confidence >= 0.6:
+        FLAG potential_violation
+
+STAGE detect_complaints:
+    FROM complaint
+    EXTRACT potential_violation USING PROMPT complaint_classification_context
+    WHEN potential_violation.category != "unknown":
+        FLAG potential_violation
+
+STAGE prioritize_and_route:
+    FROM potential_violation
+    IF potential_violation.category IN [
+        "insider_trading",
+        "material_nonpublic_info_misuse",
+        "accounting_irregularity",
+        "misleading_disclosure",
+        "books_and_records"
+    ]
+        AND potential_violation.severity == "high":
+            ROUTE TO ["LEGAL", "CHIEF_COMPLIANCE_OFFICER"]
+    IF potential_violation.category IN [
+        "whistleblower_retaliation",
+        "harassment_or_intimidation_of_reporter"
+    ]:
+            ROUTE TO ["LEGAL", "HR"]
+    ELSE IF potential_violation.severity == "medium":
+            ADD TO "COMPLIANCE_REVIEW_QUEUE"
+    ELSE:
+            ADD TO "WEEKLY_SUMMARY"
+
+STAGE link_retaliation_risk:
+    FROM complaint, message
+    WHEN message.sender IN potential_violation.related_persons
+        AND message.content CONTAINS PATTERNS [
+            "you shouldn't have reported",
+            "this is what happens when you complain",
+            "you went to HR/Legal"
+        ]:
+        CREATE potential_violation:
+            category "whistleblower_retaliation"
+            description "Possible retaliation communication"
+            confidence 0.7
+            severity "high"
+            related_persons [message.sender, complaint.reporter]
+            source_channel message.channel
+        FLAG potential_violation
+
+# -----------------------------
+# HITL (Human in the Loop)
+# -----------------------------
+
+HITL legal_review:
+    WHEN potential_violation.severity IN ["medium", "high"]
+    ASSIGN TO "LEGAL"
+    REQUIRE DECISION ONE OF [confirm_issue, false_positive, needs_more_info]
+    ON confirm_issue:
+        ESCALATE TO "CHIEF_COMPLIANCE_OFFICER"
+
+HITL hr_review_retaliation:
+    WHEN potential_violation.category == "whistleblower_retaliation"
+    ASSIGN TO "HR"
+    REQUIRE DECISION ONE OF [open_investigation, monitor, false_positive]
+
+# -----------------------------
+# Mission Skill
+# -----------------------------
+
+SKILL sec_compliance_monitoring_agent:
+    RUN detect_potential_violations CONTINUOUS
+    RUN detect_complaints CONTINUOUS
+    RUN link_retaliation_risk CONTINUOUS
+    RUN prioritize_and_route CONTINUOUS
+    ENABLE HITL legal_review
+    ENABLE HITL hr_review_retaliation
+    OUTPUT:
+        flags TO outputs/sec_flags.json
+        review_queue TO outputs/sec_review_queue.json
+        weekly_summary TO outputs/sec_weekly_summary.json

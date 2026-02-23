@@ -1,0 +1,101 @@
+SET MODEL gpt-4.1
+SET TEMPERATURE 0
+SET SEED 42
+
+SET COMPUTE:
+    DEFAULT CPU
+    USE GPU FOR stage:classify_ticket
+    MAX_COST_PER_RUN 2.00 USD
+
+AUDIT:
+    LOG EXECUTION_PLAN TO logs/plan.json
+    LOG STAGE_METRICS TO logs/stages.json
+    LOG MODEL_USAGE TO logs/models.json
+    LOG API_CALLS TO logs/api.json
+    LOG HUMAN_DECISIONS TO logs/hitl.json
+
+DEFINE ticket:
+    id TEXT
+    customer_id TEXT
+    subject TEXT
+    body TEXT
+    channel ONE OF [email, chat, web]
+    created_at DATETIME
+
+DEFINE ticket_analysis:
+    ticket_id TEXT
+    summary TEXT
+    severity NUMBER
+    category ONE OF [billing, technical, account, other]
+    requires_human YES/NO
+
+DEFINE customer_profile:
+    id TEXT
+    name TEXT
+    tier ONE OF [free, standard, premium]
+    open_balance MONEY
+    risk_score NUMBER
+
+FROM inbox/support_emails/
+EXTRACT ticket
+PREFER TOOL email_parser
+FALLBACK MODEL WITH PROMPT ticket_extraction
+
+API customer_api:
+    BASE_URL "https://api.example.com/customers"
+    AUTH "env:API_KEY"
+
+STAGE fetch_customer_profile:
+    CALL customer_api.GET("/profile/{ticket.customer_id}")
+    EXPECT JSON AS customer_profile
+
+STAGE summarize_ticket:
+    FROM ticket
+    DRAFT summary
+    PREFER TOOL text_summarizer
+    FALLBACK MODEL WITH PROMPT ticket_summarization
+    OUTPUT summary
+
+STAGE classify_ticket:
+    FROM ticket, summarize_ticket.summary, fetch_customer_profile
+    EXTRACT ticket_analysis
+    PROMPT ticket_classification
+    EXAMPLES ticket_classification_examples
+
+RULE WHEN ticket_analysis.severity > 7:
+    SET ticket_analysis.requires_human = true
+
+RULE WHEN ticket_analysis.category == "billing"
+     AND fetch_customer_profile.open_balance > 500:
+    SET ticket_analysis.requires_human = true
+
+RULE WHEN fetch_customer_profile.tier == "premium":
+    SET ticket_analysis.requires_human = true
+
+HITL review_ticket:
+    WHEN ticket_analysis.requires_human == true
+    ASSIGN TO queue "L2_support"
+    REQUIRE DECISION ONE OF [approve_bot_reply, edit_reply, escalate]
+    LOG DECISION TO logs/hitl.json
+
+STAGE draft_reply:
+    FROM ticket, ticket_analysis, fetch_customer_profile
+    DRAFT reply
+    PROMPT ticket_reply_generation
+    ROUTE:
+        IF ticket_analysis.requires_human == true
+            WAIT FOR HITL review_ticket
+            USE human_edited_reply IF PROVIDED
+        ELSE
+            USE reply
+
+SKILL support_triage:
+    RUN fetch_customer_profile
+    RUN summarize_ticket
+    RUN classify_ticket
+    RUN draft_reply
+    OUTPUT results/support_triage.json
+
+SCHEDULE support_triage:
+    TRIGGER ON new_file IN inbox/support_emails/
+    OR RUN EVERY 5 MINUTES

@@ -1,0 +1,134 @@
+SET MODEL gpt-4.1
+SET TEMPERATURE 0
+SET SEED 42
+
+SET PROFILE "BILL":
+    CHURCH_HOME "CITY_CHURCH"
+    GROUPS ["MEN'S_GROUP", "MIDWEEK_STUDY", "SERVE_TEAM"]
+    MINISTRIES ["USHER_TEAM", "OUTREACH", "PRAYER_TEAM"]
+    CONTACTS_FROM:
+        - email
+        - sms
+        - groupme
+        - whatsapp
+        - church_center
+    PRIORITY_NEEDS:
+        - "PRAYER"
+        - "SICKNESS"
+        - "LOSS_OF_JOB"
+        - "FINANCIAL_NEED"
+        - "PASTORAL_CARE"
+        - "URGENT_HELP"
+    SABBATH_WINDOW "SAT 18:00" TO "SUN 18:00"
+
+SET NOTIFICATION_POLICY:
+    DURING SABBATH_WINDOW:
+        ROUTE NON_ESSENTIAL TO "MONDAY_DIGEST"
+        ALLOW ONLY:
+            - PRAYER_REQUESTS
+            - CRITICAL_NEEDS
+            - FAMILY_NOTIFICATIONS
+
+AUDIT:
+    LOG EVENTS TO logs/community.json
+    LOG PRIORITY_FLAGS TO logs/needs.json
+    LOG HITL_DECISIONS TO logs/hitl.json
+
+# -----------------------------
+# Domain Types
+# -----------------------------
+
+DEFINE message:
+    sender TEXT
+    channel ONE OF [email, sms, groupme, whatsapp]
+    content TEXT
+    timestamp DATETIME
+
+DEFINE community_need:
+    type ONE OF ["prayer", "sickness", "job_loss", "financial", "urgent_help", "unknown"]
+    person TEXT
+    details TEXT
+    urgency ONE OF [low, medium, high]
+    timestamp DATETIME
+
+DEFINE event:
+    title TEXT
+    ministry TEXT
+    start DATETIME
+    end DATETIME
+    required YES/NO
+
+# -----------------------------
+# Sources
+# -----------------------------
+
+FROM email/inbox
+EXTRACT message USING PROMPT message_extraction
+
+FROM sms/messages
+EXTRACT message
+
+FROM groupme/chats
+EXTRACT message
+
+FROM church_center/events.json
+EXTRACT event
+
+# -----------------------------
+# Stages
+# -----------------------------
+
+STAGE detect_needs:
+    FROM message
+    EXTRACT community_need USING PROMPT need_detection_context
+    WHEN community_need.type != "unknown":
+        FLAG community_need
+
+STAGE prioritize_needs:
+    FROM community_need
+    SORT BY urgency DESC
+    GROUP BY person
+    OUTPUT TO "NEEDS_DASHBOARD"
+
+STAGE update_calendar:
+    FROM event
+    IF event.required == YES:
+        ADD TO CALENDAR
+    ELSE:
+        SUGGEST TO USER
+
+STAGE quiet_hours_filter:
+    FROM message
+    WHEN TIME IN SABBATH_WINDOW:
+        ROUTE NON_ESSENTIAL TO "MONDAY_DIGEST"
+
+# -----------------------------
+# HITL (Human in the Loop)
+# -----------------------------
+
+HITL confirm_outreach:
+    WHEN community_need.urgency == "high"
+    ASK USER:
+        "Do you want to reach out to {{community_need.person}}?"
+    REQUIRE DECISION ONE OF [yes, no, remind_me_later]
+
+HITL confirm_calendar_add:
+    WHEN event.required == NO
+    ASK USER:
+        "Add this event to your calendar?"
+    REQUIRE DECISION ONE OF [yes, no]
+
+# -----------------------------
+# Mission Skill
+# -----------------------------
+
+SKILL christian_community_signal_agent:
+    RUN detect_needs CONTINUOUS
+    RUN prioritize_needs CONTINUOUS
+    RUN update_calendar CONTINUOUS
+    RUN quiet_hours_filter CONTINUOUS
+    ENABLE HITL confirm_outreach
+    ENABLE HITL confirm_calendar_add
+    OUTPUT:
+        needs_dashboard TO outputs/community_needs.json
+        calendar TO outputs/calendar.json
