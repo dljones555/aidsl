@@ -1,0 +1,95 @@
+
+SET MODEL gpt-4.1
+SET TEMPERATURE 0
+SET SEED 42
+SET HOME:
+    ROOMS ["BEDROOM", "LIVING", "KITCHEN", "GARAGE"]
+    OCCUPANTS ["RON"]
+    DEVICES:
+        LIGHTS ["BEDROOM_MAIN", "HALLWAY", "PORCH"]
+        HVAC ["THERMOSTAT_MAIN"]
+        SECURITY ["FRONT_DOOR_LOCK", "GARAGE_DOOR", "CAMERA_PORCH"]
+        POWER ["EV_CHARGER", "WASHER", "DRYER"]
+        MEDIA ["BEDROOM_SPEAKER", "LIVING_TV"]
+SET COMMS_POLICY:
+    WHEN INTERNET == DOWN:
+        RUN LOCAL_AUTOMATIONS ONLY
+        BUFFER CLOUD_EVENTS
+SET POWER_POLICY:
+    PREFER OFF_PEAK FOR:
+        - EV_CHARGER
+        - WASHER
+        - DRYER
+    MAINTAIN COMFORT_RANGE 68 TO 72 IN "BEDROOM" DURING SLEEP_WINDOW
+SET SLEEP_PROFILE "DAVID":
+    SLEEP_WINDOW "23:00" TO "07:00"
+    PREFERRED_TEMP 69
+    DARKNESS_LEVEL "MAX"
+    NOISE_LEVEL "LOW"
+AUDIT:
+    LOG AUTOMATIONS TO logs/home_automations.json
+    LOG SECURITY_EVENTS TO logs/security.json
+    LOG POWER_EVENTS TO logs/power.json
+# -------- Domain types --------
+DEFINE sensor_event:
+    type ONE OF [motion, door, sound, light_level, power_price]
+    location TEXT
+    value ANY
+    timestamp DATETIME
+DEFINE sleep_state:
+    occupant TEXT
+    phase ONE OF [awake, falling_asleep, light_sleep, deep_sleep]
+    last_update DATETIME
+# -------- Sources --------
+FROM sensors/motion/*.json
+EXTRACT sensor_event
+FROM wearables/sleep_tracker.json
+EXTRACT sleep_state
+FROM utility/power_prices.json
+EXTRACT sensor_event
+WHERE type == "power_price"
+# -------- Stages --------
+STAGE manage_sleep_env:
+    FROM sleep_state, sensor_event
+    WHEN sleep_state.phase IN [falling_asleep, light_sleep, deep_sleep]
+    DO:
+        SET "BEDROOM_MAIN" = OFF
+        SET "HALLWAY" = DIM IF motion NEAR "BEDROOM"
+        SET "THERMOSTAT_MAIN" = SLEEP_PROFILE("DAVID").PREFERRED_TEMP
+        MUTE "LIVING_TV"
+        SET "BEDROOM_SPEAKER" TO "BROWN_NOISE" AT VOLUME 2
+STAGE manage_security_night:
+    FROM sensor_event
+    WHEN TIME BETWEEN "23:00" AND "06:00":
+        IF sensor_event.type == motion AND sensor_event.location == "PORCH":
+            TURN ON "PORCH" FOR 5 MIN
+            RECORD "CAMERA_PORCH"
+        IF sensor_event.type == door AND sensor_event.location == "FRONT_DOOR":
+            LOCK "FRONT_DOOR_LOCK" AFTER 1 MIN
+STAGE optimize_charging:
+    FROM sensor_event
+    WHEN sensor_event.type == power_price:
+        IF sensor_event.value < 0.12:
+            ENABLE "EV_CHARGER"
+        ELSE:
+            PAUSE "EV_CHARGER" UNLESS BATTERY_LEVEL < 20
+STAGE quiet_hours_notifications:
+    FROM sensor_event
+    WHEN TIME IN SLEEP_PROFILE("DAVID").SLEEP_WINDOW:
+        ROUTE NON_CRITICAL_NOTIFICATIONS TO "MORNING_DIGEST"
+        ONLY ALLOW:
+            - SECURITY_BREACH
+            - FIRE_ALARM
+            - WATER_LEAK
+# -------- HITL --------
+HITL confirm_unusual_event:
+    WHEN "CAMERA_PORCH" DETECTS PERSON AND TIME BETWEEN "01:00" AND "04:00"
+    SEND SNAPSHOT TO "DAVID"
+    REQUIRE DECISION ONE OF [ignore, turn_on_lights, call_neighbor]
+# -------- Home mission skill --------
+SKILL home_night_mission:
+    RUN manage_sleep_env CONTINUOUS
+    RUN manage_security_night CONTINUOUS
+    RUN optimize_charging CONTINUOUS
+    RUN quiet_hours_notifications CONTINUOUS
+    ENABLE HITL confirm_unusual_event

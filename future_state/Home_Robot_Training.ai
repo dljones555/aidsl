@@ -1,25 +1,37 @@
+# https://grok.com/c/7b579742-6bd6-4ae1-805b-ba0ee4be9d25?rid=d061224d-48a7-4ebe-9b12-c62867cbff4a
+
+VERSION 0.2.1                  -- explicit versioning for audit/rollback
+
 SET ROBOTS homebot1, homebot2
 SET MODE safe_autonomy
 SET TEMPERATURE 0
+SET MAX_PARALLEL_TASKS 2       -- new: multi-agent guard
 
 DEFINE presence:
-    kids YES/NO
-    seniors YES/NO
-    pets YES/NO
+    kids     YES/NO DEFAULT NO
+    seniors  YES/NO DEFAULT NO
+    pets     YES/NO DEFAULT NO
 
 DEFINE cleaning_task:
-    room ONE OF [kitchen, living_room, hallway, bedrooms]
-    method ONE OF [vacuum, sweep, wipe]
-    priority NUMBER
-    avoid_noise WHEN presence.kids OR presence.seniors
+    room          ONE OF [kitchen, living_room, hallway, bedrooms]
+    method        ONE OF [vacuum, sweep, wipe]
+    priority      NUMBER 1..10
+    avoid_noise   BOOLEAN   -- derived from presence
 
 DEFINE lawn_zone:
-    name TEXT
-    boundary POLYGON
-    no_mow WHEN presence.kids OR presence.pets
+    name          TEXT
+    boundary      POLYGON   -- compiler validates closed, non-self-intersecting
+    no_mow        BOOLEAN
 
-FROM sensors/presence_stream
-EXTRACT presence
+DEFINE action_log:             -- new: enforced output schema
+    timestamp     DATETIME
+    robot         TEXT
+    task          TEXT
+    status        ONE OF [success, fallback, human_intervene, failed]
+    safety_violations LIST OF TEXT
+
+FROM sensors/presence_stream   -- typed stream with Pydantic model
+EXTRACT presence EVERY 5s
 
 FROM household/cleaning_schedule.json
 EXTRACT cleaning_task
@@ -27,43 +39,58 @@ EXTRACT cleaning_task
 FROM yard/zones.json
 EXTRACT lawn_zone
 
-RULE WHEN presence.kids IS true:
-    LIMIT robot_speed TO 0.3
-    REQUIRE voice_confirmation FOR hazardous_actions
+-- SAFETY LAYER (compiles to LTL monitors + runtime guards)
+SAFETY:
+    ALWAYS presence.kids      IMPLIES robot_speed <= 0.3
+    ALWAYS presence.pets      IMPLIES avoid_radius(pets) >= 1.5m
+    ALWAYS presence.seniors   IMPLIES enable_fall_detection AND quiet_mode
+    EVENTUALLY hazardous_action REQUIRES voice_confirmation   -- LTL "eventually"
+    UNTIL task_complete AVOID chemical_cleaners WHEN presence.pets
 
-RULE WHEN presence.seniors IS true:
-    ENABLE fall_detection_monitoring
-    PRIORITIZE quiet_cleaning_methods
+-- RULES become deterministic + LTL-backed
+RULE WHEN presence.kids IS true:
+    LIMIT ALL_ROBOTS speed TO 0.3
+    REQUIRE voice_confirmation FOR hazardous_actions
+    FALLBACK_TO pause_and_notify
 
 RULE WHEN presence.pets IS true:
     AVOID pet_locations WITH radius 1.5m
     DISABLE chemical_cleaners
+    ON_VIOLATION trigger_pet_alert
 
 TASK clean_home:
-    FOR EACH cleaning_task
-        ASSIGN TO homebot1
+    FOR EACH cleaning_task IN PRIORITY ORDER
+        ASSIGN TO homebot1 OR homebot2   -- auto load-balance
         EXECUTE cleaning_task
-        LOG TO home_history.json
+            WITH BEHAVIOR_TREE:          -- explicit compilation target
+                Sequence
+                    - PerceiveEnvironment
+                    - CheckSafetyLTL
+                    - Fallback(AvoidDynamicObstacles, ExecuteMethod)
+                    - Log action_log
+        ON_FAILURE RETRY 2 TIMES THEN FALLBACK human_approve
 
 TASK mow_lawn:
-    FOR EACH lawn_zone
-        IF lawn_zone.no_mow IS false
-            ASSIGN TO homebot2
-            MOW boundary lawn_zone.boundary
-            LOG TO yard_history.json
+    FOR EACH lawn_zone WHERE no_mow IS false
+        ASSIGN TO homebot2
+        EXECUTE mow boundary lawn_zone.boundary
+        COORDINATE WITH homebot1 IF overlap(kitchen_zone)  -- new multi-agent
 
-DEMONSTRATE folding_towels
-    RECORD 3 SESSIONS
+DEMONSTRATE folding_towels:
+    RECORD 3 SESSIONS WITH SAFETY_ENVELOPE speed<=0.2
     TRAIN SKILL towel_folding
-    CONFIDENCE TARGET 0.92
+    CONFIDENCE_TARGET 0.92
+    SAFETY_LTL: ALWAYS grip_force <= 5N   -- prevent crushing
 
 TASK fold_laundry:
     USE SKILL towel_folding
     EXECUTE WHEN laundry_ready.json
+    REQUIRE CONFIDENCE >= 0.92 ELSE FALLBACK manual_mode
 
 SCHEDULE:
-    RUN clean_home EVERY DAY AT 09:00
+    RUN clean_home EVERY DAY AT 09:00 UNLESS presence.kids
     RUN mow_lawn EVERY SATURDAY AT 08:00
     RUN fold_laundry WHEN laundry_ready.json
 
-OUTPUT robot_activity_log.json
+OUTPUT robot_activity_log.json SCHEMA action_log   -- enforced Pydantic
+LOG ALL_SAFETY_EVENTS TO audit_trail.lean          -- optional Lean export for cert
