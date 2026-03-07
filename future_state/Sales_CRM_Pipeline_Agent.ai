@@ -1,0 +1,268 @@
+-- Sales / CRM Pipeline Agent
+-- Inbound leads -> qualify -> enrich -> score -> route -> draft outreach -> HITL review
+-- Demonstrates: stages, skills, HITL, context, evals, cost estimation, scheduling
+
+VERSION 0.3.0-sales
+
+SET MODEL gpt-4.1
+SET TEMPERATURE 0
+SET SEED 42
+
+SET COMPUTE:
+    DEFAULT CPU
+    USE GPU FOR stage:qualify_lead, stage:draft_outreach
+    MAX_COST_PER_RUN 5.00 USD
+    ESTIMATE:
+        CPU_HOURS 0.01
+        GPU_TOKENS 12000
+        HUMAN_REVIEW_AVG 3 MIN
+        INFRA monthly:
+            QUEUE 0.00 USD   -- simple cron
+            STORAGE 2.00 USD -- logs + context
+        SCALE_FACTOR:
+            AT 100 leads/day: 1x cost
+            AT 1000 leads/day: 8x cost (parallel workers needed)
+            AT 10000 leads/day: requires queue infra + dedicated GPU
+
+SET CONTEXT:
+    SCOPE per_lead
+    RETAIN last_5_interactions
+    AUTO_EXPIRE 90 DAYS
+    CARRY_FORWARD [lead.score, lead.segment, lead.last_contact]
+    MAX_SIZE 4096 TOKENS
+    ON_OVERFLOW summarize_and_compress
+
+SET HEALTHCHECK:
+    PING EVERY 5 MINUTES
+    WARN WHEN context_age > 30 DAYS
+    WARN WHEN error_rate > 5%
+    WARN WHEN avg_response_time > 10s
+    ALERT WHEN queue_depth > 500
+    REPORT TO dashboard/sales_health.json
+
+AUDIT:
+    LOG EXECUTION_PLAN TO logs/plan.json
+    LOG STAGE_METRICS TO logs/stages.json
+    LOG MODEL_USAGE TO logs/models.json
+    LOG HUMAN_DECISIONS TO logs/hitl.json
+    LOG CONTEXT_EVENTS TO logs/context.json
+    TELEMETRY:
+        LATENCY per_stage
+        TOKEN_USAGE per_model_call
+        COST_ACTUAL vs COST_ESTIMATED
+        ERROR_RATE rolling_1h
+
+# -------------------------------------------------------
+# Domain Types
+# -------------------------------------------------------
+
+DEFINE lead:
+    name TEXT
+    email TEXT
+    company TEXT
+    title TEXT
+    source ONE OF [website, linkedin, referral, conference, cold_list]
+    raw_message TEXT
+    created_at DATETIME
+
+DEFINE enriched_lead:
+    lead_id TEXT
+    company_size ONE OF [startup, smb, mid_market, enterprise]
+    industry ONE OF [tech, finance, healthcare, manufacturing, retail, other]
+    annual_revenue MONEY
+    tech_stack LIST OF TEXT
+    recent_funding YES/NO
+    competitor_customer YES/NO
+
+DEFINE qualified_lead:
+    lead_id TEXT
+    score NUMBER
+    segment ONE OF [hot, warm, cold, disqualified]
+    qualification_reasons LIST OF TEXT
+    requires_human YES/NO
+    estimated_deal_size MONEY
+    next_action ONE OF [call, email, demo, nurture, disqualify]
+
+DEFINE outreach:
+    lead_id TEXT
+    channel ONE OF [email, linkedin, phone]
+    subject TEXT
+    body TEXT
+    tone ONE OF [formal, conversational, technical]
+    personalization_score NUMBER
+
+# -------------------------------------------------------
+# Sources
+# -------------------------------------------------------
+
+FROM inbox/leads/
+EXTRACT lead
+
+API crm_api:
+    BASE_URL "env:CRM_API_URL"
+    AUTH "env:CRM_API_KEY"
+
+API enrichment_api:
+    BASE_URL "https://api.clearbit.com/v2"
+    AUTH "env:CLEARBIT_KEY"
+
+# -------------------------------------------------------
+# Stages
+# -------------------------------------------------------
+
+STAGE enrich_lead:
+    CALL enrichment_api.GET("/companies/find?domain={lead.email_domain}")
+    EXPECT JSON AS enriched_lead
+    PREFER TOOL enrichment_api
+    FALLBACK MODEL WITH PROMPT lead_enrichment_from_web
+    ON_FAILURE:
+        SET enriched_lead.company_size = "unknown"
+        LOG WARNING "Enrichment failed for {lead.email}"
+        CONTINUE
+
+STAGE qualify_lead:
+    FROM lead, enriched_lead
+    EXTRACT qualified_lead
+    PROMPT lead_qualification_context
+    EXAMPLES lead_qualification_examples
+    CONTEXT:
+        INCLUDE lead.previous_interactions IF EXISTS
+        INCLUDE enriched_lead
+
+STAGE score_and_route:
+    FROM qualified_lead, enriched_lead
+
+    RULE WHEN enriched_lead.company_size IS enterprise
+         AND enriched_lead.recent_funding IS true:
+        SET qualified_lead.segment = "hot"
+        SET qualified_lead.score = 95
+
+    RULE WHEN enriched_lead.competitor_customer IS true:
+        SET qualified_lead.segment = "hot"
+        SET qualified_lead.requires_human = true
+
+    RULE WHEN qualified_lead.score < 30:
+        SET qualified_lead.segment = "disqualified"
+        SET qualified_lead.next_action = "disqualify"
+
+    RULE WHEN qualified_lead.segment IS hot:
+        SET qualified_lead.requires_human = true
+        ROUTE TO "SALES_DIRECTOR"
+
+    RULE WHEN qualified_lead.segment IS warm:
+        ROUTE TO "SDR_QUEUE"
+
+    RULE WHEN qualified_lead.segment IS cold:
+        ROUTE TO "NURTURE_SEQUENCE"
+
+STAGE draft_outreach:
+    FROM lead, qualified_lead, enriched_lead
+    DRAFT outreach
+    PROMPT outreach_generation
+    EXAMPLES outreach_examples
+    CONTEXT:
+        USE lead.raw_message FOR tone_matching
+        USE enriched_lead.industry FOR personalization
+        USE enriched_lead.tech_stack FOR relevance
+
+    RULE WHEN enriched_lead.company_size IS enterprise:
+        SET outreach.tone = "formal"
+    RULE WHEN enriched_lead.company_size IS startup:
+        SET outreach.tone = "conversational"
+
+STAGE sync_to_crm:
+    CALL crm_api.POST("/leads/{lead_id}/activities")
+    BODY:
+        qualified_lead
+        outreach
+        context_snapshot
+    ON_FAILURE RETRY 3 TIMES THEN LOG ERROR
+
+# -------------------------------------------------------
+# HITL
+# -------------------------------------------------------
+
+HITL review_hot_lead:
+    WHEN qualified_lead.segment IS hot
+    ASSIGN TO "SALES_DIRECTOR"
+    SHOW lead, enriched_lead, qualified_lead, outreach
+    REQUIRE DECISION ONE OF [approve_outreach, edit_outreach, schedule_call, reassign]
+    TIMEOUT 4 HOURS THEN ESCALATE TO "VP_SALES"
+    LOG DECISION TO logs/hitl.json
+
+HITL review_competitor_lead:
+    WHEN enriched_lead.competitor_customer IS true
+    ASSIGN TO "ACCOUNT_EXECUTIVE"
+    REQUIRE DECISION ONE OF [pursue_aggressively, standard_outreach, pass]
+    TIMEOUT 24 HOURS THEN ROUTE TO "SDR_QUEUE"
+
+# -------------------------------------------------------
+# Evals
+# -------------------------------------------------------
+
+EVAL qualification_accuracy:
+    GROUND_TRUTH eval_data/qualified_leads_labeled.json
+    RUN qualify_lead WITH eval_data/sample_leads.json
+    SCORE:
+        segment_accuracy: exact_match(predicted.segment, expected.segment)
+        score_correlation: pearson(predicted.score, expected.score)
+        disqualify_precision: precision(predicted.segment == "disqualified")
+    PASS WHEN segment_accuracy >= 0.85 AND score_correlation >= 0.75
+    OUTPUT eval_results/qualification_eval.json
+
+EVAL outreach_quality:
+    GROUND_TRUTH eval_data/outreach_rated.json
+    RUN draft_outreach WITH eval_data/sample_qualified.json
+    SCORE:
+        personalization: avg(predicted.personalization_score)
+        tone_match: exact_match(predicted.tone, expected.tone)
+    PASS WHEN personalization >= 7.0 AND tone_match >= 0.90
+    OUTPUT eval_results/outreach_eval.json
+
+# -------------------------------------------------------
+# Harness & Loop
+# -------------------------------------------------------
+
+SCHEDULE sales_pipeline:
+    TRIGGER ON new_file IN inbox/leads/
+    OR RUN EVERY 15 MINUTES
+    HEALTHCHECK EVERY 5 MINUTES
+
+HARNESS:
+    MODE simple                          -- simple | queue | distributed
+    PARALLEL_WORKERS 1                   -- scale up when needed
+    ERROR_HANDLING:
+        ON_STAGE_FAILURE continue        -- don't kill pipeline for one bad lead
+        MAX_CONSECUTIVE_FAILURES 10      -- circuit breaker
+        ON_CIRCUIT_BREAK pause_and_alert
+    LOGGING:
+        LEVEL info
+        FORMAT json
+        SINK logs/pipeline.jsonl
+    TELEMETRY:
+        EXPORT opentelemetry             -- or prometheus, or simple json
+        ENDPOINT "env:OTEL_ENDPOINT"     -- optional, falls back to local file
+    CONTEXT_MANAGEMENT:
+        PERSIST TO context_store/        -- simple file-based default
+        CLEANUP EVERY 24 HOURS
+        ARCHIVE AFTER 90 DAYS
+
+# -------------------------------------------------------
+# Skill
+# -------------------------------------------------------
+
+SKILL sales_pipeline_agent:
+    RUN enrich_lead
+    RUN qualify_lead
+    RUN score_and_route
+    RUN draft_outreach
+    RUN sync_to_crm
+    ENABLE HITL review_hot_lead
+    ENABLE HITL review_competitor_lead
+    EVAL qualification_accuracy WEEKLY
+    EVAL outreach_quality WEEKLY
+    OUTPUT:
+        qualified TO outputs/qualified_leads.json
+        outreach TO outputs/outreach_drafts.json
+        disqualified TO outputs/disqualified.json
+        dashboard TO dashboard/sales_metrics.json

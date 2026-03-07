@@ -186,7 +186,77 @@ These are all good ideas filed in `future_state/`. They stay there.
 
 ---
 
-## AI as Force Multiplier (What Tools CAN Do For You)
+## Ideas Parking Lot (Captured, Not Scheduled)
+
+Raw ideas captured before they're lost. Not prioritized, not designed.
+Pull into the vision stack only when customer signal justifies it.
+
+### Harness & Loop — Orchestration Layer
+
+A pluggable module that sits above .ai files and handles execution:
+- Simple to advanced loops (retry, batch, streaming)
+- Scheduling (cron, event-driven, file-watch triggers)
+- DAG/graph execution (stages with dependencies)
+- Queuing (work queues, priority, backpressure)
+- Multi-agent orchestration (run N agents in parallel)
+- Cost estimation: CPU, GPU, energy, infra, human labor and skill costs,
+  scale factors (1 home vs 500, 10 tickets vs 10,000)
+- Pluggable into external orchestration: can be bare cron + queues,
+  or opinionated infra gen (Aspire-like or Python-native approach for
+  setting up required services), or plug into existing tools
+- Error handling, structured logging, telemetry
+- Healthcheck endpoint (is the agent alive, last run status, error rate)
+- **Context management**: The whole system is essentially managed context.
+  Simple commands to set, clear, scope, and persist context across runs.
+  Auto context management (what the agent remembers, forgets, carries
+  forward). Healthcheck includes context health (stale? too large?
+  missing critical state?). A few simple levers and settings — not a
+  framework, just knobs: context window, retention policy, scope rules.
+
+### Agent Dashboards & Human UI/UX
+
+- Streamlit or similar lightweight UI for monitoring agent runs
+- Real-time view: what's running, what's flagged, what needs HITL review
+- Historical view: run logs, cost trends, accuracy over time
+- HITL inbox: queue of items awaiting human decision
+- Custom UI layer where users build agent-specific interfaces
+- Could be a separate project that reads the audit logs the DSL produces
+
+### Protocol & Ecosystem Integration
+
+- **A2A (Agent-to-Agent)**: Google's agent interop protocol
+- **MCP (Model Context Protocol)**: Anthropic's tool/context standard
+- **Agent Skills (agentskills.io)**: Skill packaging and sharing
+- **Training data standard**: Like robots.txt but for AI training data —
+  a declaration of what data is available, how it should be used, what's
+  off-limits. (Not RSL — a new standard for training data governance.)
+- These are interop layers — the DSL compiles *to* these formats, not
+  *from* them
+- Gap analysis needed: what does a full production system require beyond
+  parse/compile/run? (Auth, secrets, networking, observability, deployment)
+
+### Evals — Simple, Composable, Ecosystem-Aware
+
+The DSL needs a way to measure "is this pipeline good?" Tied to the verify
+graph and confidence scores.
+
+- **Per-pipeline evals**: Run N inputs, compare outputs to ground truth,
+  score accuracy/consistency. Like pytest but for AI quality.
+- **Eval levels**:
+  - Private: your own test cases, your own data
+  - Shared: team/org benchmarks (e.g., "our claims extraction must be >95%")
+  - Industry: public benchmarks for common tasks (NER, classification, etc.)
+  - Marketplace/repo: community-contributed eval sets per domain
+- **Eval output**: Ties into verify graph — each run produces scores,
+  method breakdown, and confidence. Diffable over time.
+- **Keep it simple**: An eval is just a .ai file + a ground truth JSON +
+  a scoring function. Don't over-engineer this.
+
+*All items above are PBI-level. No work starts without customer pull.*
+
+---
+
+## What NOT to Do
 
 You asked if AI can help you market, build community, and sell. Yes, but
 specifically:
