@@ -2,6 +2,9 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from pathlib import Path
+from typing import Any, Literal
+
+import pydantic
 
 from .parser import Condition, DraftDef, FieldDef, FlagRule, Program, Schema, Settings
 
@@ -79,6 +82,52 @@ class ExecutionPlan:
     verb: str = "EXTRACT"  # EXTRACT or CLASSIFY
     draft_prompt: DraftPrompt | None = None
     settings: Settings = None  # type: ignore[assignment]
+    pydantic_model: type[pydantic.BaseModel] | None = None
+
+
+def _build_pydantic_model(
+    schema: Schema,
+    all_schemas: dict[str, Schema],
+    name: str = "",
+) -> type[pydantic.BaseModel]:
+    """Dynamically build a Pydantic model from a Schema definition.
+
+    Handles TEXT, MONEY, NUMBER, BOOL, ENUM, LIST OF, and REF types.
+    Nested schemas are recursively converted to nested Pydantic models.
+    """
+    model_name = name or schema.name.capitalize()
+    field_definitions: dict[str, Any] = {}
+
+    for f in schema.fields:
+        if f.type == "TEXT":
+            field_definitions[f.name] = (str, ...)
+        elif f.type in ("MONEY", "NUMBER"):
+            field_definitions[f.name] = (float, ...)
+        elif f.type == "BOOL":
+            field_definitions[f.name] = (bool, ...)
+        elif f.type == "ENUM":
+            literal_type = Literal[tuple(f.enum_values)]  # type: ignore[valid-type]
+            field_definitions[f.name] = (literal_type, ...)
+        elif f.type == "LIST":
+            ref_schema = all_schemas.get(f.ref_type)
+            if not ref_schema:
+                raise ValueError(f"Referenced type '{f.ref_type}' not defined")
+            item_model = _build_pydantic_model(ref_schema, all_schemas)
+            field_definitions[f.name] = (list[item_model], ...)  # type: ignore[valid-type]
+        elif f.type == "REF":
+            ref_schema = all_schemas.get(f.ref_type)
+            if not ref_schema:
+                raise ValueError(f"Referenced type '{f.ref_type}' not defined")
+            nested_model = _build_pydantic_model(ref_schema, all_schemas)
+            field_definitions[f.name] = (nested_model, ...)
+        else:
+            field_definitions[f.name] = (str, ...)
+
+    return pydantic.create_model(
+        model_name,
+        __config__=None,
+        **field_definitions,
+    )
 
 
 def compile_program(program: Program, base_dir: str = ".") -> ExecutionPlan:
@@ -289,6 +338,7 @@ def _compile_extract(program: Program, base_dir: str) -> ExecutionPlan:
         output=program.output,
         schema=schema,
         verb="EXTRACT",
+        pydantic_model=_build_pydantic_model(schema, program.schemas),
     )
 
 
@@ -355,6 +405,7 @@ def _compile_classify(program: Program, base_dir: str) -> ExecutionPlan:
         output=program.output,
         schema=schema,
         verb="CLASSIFY",
+        pydantic_model=_build_pydantic_model(schema, program.schemas),
     )
 
 

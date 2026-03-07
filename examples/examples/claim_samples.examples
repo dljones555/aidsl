@@ -1,0 +1,8 @@
+INPUT: John Davis, policy AUT-99201, rear-ended at intersection. Repair estimate $4,200 for bumper and taillight. Not disputed.
+OUTPUT: {"claimant": "John Davis", "policy_number": "AUT-99201", "claim_amount": 4200.00, "num_items": 2, "is_disputed": false, "claim_type": "auto", "items": [{"description": "Bumper repair", "amount": 3200.00}, {"description": "Taillight replacement", "amount": 1000.00}]}
+
+INPUT: Sarah Chen, policy PROP-44310, kitchen fire damaged cabinets ($8,500) and appliances ($3,200). Disputed cause of fire. Total $11,700.
+OUTPUT: {"claimant": "Sarah Chen", "policy_number": "PROP-44310", "claim_amount": 11700.00, "num_items": 2, "is_disputed": true, "claim_type": "property", "items": [{"description": "Cabinet damage from fire", "amount": 8500.00}, {"description": "Appliance replacement", "amount": 3200.00}]}
+
+INPUT: Mike Torres, policy HLT-77123, emergency room visit $2,800 plus ambulance $1,500. Not disputed.
+OUTPUT: {"claimant": "Mike Torres", "policy_number": "HLT-77123", "claim_amount": 4300.00, "num_items": 2, "is_disputed": false, "claim_type": "health", "items": [{"description": "Emergency room visit", "amount": 2800.00}, {"description": "Ambulance transport", "amount": 1500.00}]}

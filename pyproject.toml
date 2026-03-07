@@ -5,6 +5,7 @@ description = "AI DSL proof of concept - structured DSL beats raw prompts"
 requires-python = ">=3.11"
 dependencies = [
     "httpx",
+    "pydantic>=2.12.5",
 ]
 
 [project.optional-dependencies]
