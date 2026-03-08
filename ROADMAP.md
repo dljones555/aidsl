@@ -213,27 +213,84 @@ A pluggable module that sits above .ai files and handles execution:
   missing critical state?). A few simple levers and settings — not a
   framework, just knobs: context window, retention policy, scope rules.
 
-### Agent Dashboards & Human UI/UX
+### Agent API Layer — Runtime Control Surface
 
-- Streamlit or similar lightweight UI for monitoring agent runs
-- Real-time view: what's running, what's flagged, what needs HITL review
-- Historical view: run logs, cost trends, accuracy over time
-- HITL inbox: queue of items awaiting human decision
-- Custom UI layer where users build agent-specific interfaces
-- Could be a separate project that reads the audit logs the DSL produces
+Before UIs or dashboards, the DSL needs a simple API that any frontend
+can call. This is the control surface — not the UI itself:
+
+- **Core ops**: `run(pipeline)`, `start(agent)`, `stop(agent)`,
+  `status(agent)`, `get_output(run_id)`, `list_runs()`
+- **HITL ops**: `get_pending_reviews()`, `submit_decision(review_id, decision)`
+- **Introspection**: `get_execution_plan(pipeline)`, `get_cost_estimate(pipeline)`,
+  `get_verify_graph(run_id)`
+- Could be a simple REST/JSON API, or a Python class, or both
+- This is NOT a k8s-level orchestrator — it's a thin control layer over
+  the existing compiler + runtime. Start with a Python class. Add HTTP
+  when a UI needs it.
+- Open question: does this look more like a library API (import and call),
+  a local server (FastAPI on localhost), or a managed service? Depends on
+  deployment context. Start with library, graduate to server.
+
+### Agent UIs — Multiple Surfaces, One API
+
+Not just chatbots. The API layer above enables multiple UI patterns:
+
+- **Chat UI**: Chainlit or similar — conversational agent interaction,
+  good for support/helpdesk use cases. Wraps `run_one()` per message.
+- **Dashboard UI**: Streamlit or similar — monitoring, metrics, run
+  history, cost trends. Reads audit logs the DSL already produces.
+- **HITL Inbox**: Review queue for flagged items awaiting human decision.
+  Could be standalone or embedded in dashboard.
+- **Form/wizard UI**: For non-chat use cases — upload a file, pick a
+  pipeline, see structured results. Data processing, not conversation.
+- **Embedded UI**: Components that drop into existing apps (React,
+  Vue, etc.) via the API layer.
+- **CLI** (already exists): `aidsl run pipeline.ai` — the original UI.
+- **No UI**: Library mode — import Pipeline, call `.run()` from your
+  own code. FastAPI, Celery, notebooks, whatever.
+
+The DSL doesn't own the UI. It owns the API. UIs are adapters.
 
 ### Protocol & Ecosystem Integration
 
 - **A2A (Agent-to-Agent)**: Google's agent interop protocol
 - **MCP (Model Context Protocol)**: Anthropic's tool/context standard
 - **Agent Skills (agentskills.io)**: Skill packaging and sharing
+- **OpenAI Assistants API / Responses API**: Compatibility layer so
+  DSL pipelines can be called as assistants or respond in the expected
+  format. Not lock-in — just speaking their protocol.
+- **AG-UI (Agent-User Interaction Protocol)**: Emerging standard for
+  how agent backends communicate with frontend UIs. If this matures,
+  the DSL's API layer should speak it natively.
 - **Training data standard**: Like robots.txt but for AI training data —
   a declaration of what data is available, how it should be used, what's
-  off-limits. (Not RSL — a new standard for training data governance.)
+  off-limits.
 - These are interop layers — the DSL compiles *to* these formats, not
-  *from* them
+  *from* them. The compiler gains new output targets over time.
 - Gap analysis needed: what does a full production system require beyond
   parse/compile/run? (Auth, secrets, networking, observability, deployment)
+
+### Verb Ecosystem — Open Source Extension Model
+
+Verbs are the instruction set. Community developers should be able to
+extend it — like Salesforce Flows, Terraform providers, or pytest plugins:
+
+- **Core verbs** (built-in, governed). Design gate per CONCEPTS.md rules:
+  - Shipped: EXTRACT, CLASSIFY, DRAFT
+  - Near-term: SUMMARIZE (text in, condensed text out, precision mode)
+  - Future core: STAGE (named pipeline step with data flow),
+    ROUTE (direct output to a destination by rule),
+    REVIEW (HITL gate — pause for human decision),
+    CONVERSE (multi-turn chat loop with context)
+- **Domain packs** (installed): `IMPORT DOMAIN smart_home` adds MONITOR,
+  SET_DEVICE. Each pack is a Python package with typed verb definitions.
+- **Community verbs** (npm-like): `aidsl install verb-route` adds ROUTE.
+  Each verb is a Python module with a defined interface: input type,
+  output type, inference mode (GPU/CPU/HITL), compilation target.
+- **Verb = the DSL equivalent of a Flow, MCP tool, or agent action.**
+  One abstraction that maps to multiple protocol targets.
+- Don't build the registry until 3+ developers ask for it. Until then
+  verbs are Python modules in a `verbs/` folder.
 
 ### Evals — Simple, Composable, Ecosystem-Aware
 
