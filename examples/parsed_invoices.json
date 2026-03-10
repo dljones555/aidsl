@@ -1,0 +1,79 @@
+[
+  {
+    "vendor": "Acme Office Supplies",
+    "invoice_num": "INV-2024-001",
+    "total": 1265.11,
+    "items": [
+      {
+        "description": "Standing Desk Pro",
+        "quantity": 1.0,
+        "unit_price": 849.0
+      },
+      {
+        "description": "Monitor Arm Mount",
+        "quantity": 2.0,
+        "unit_price": 79.0
+      },
+      {
+        "description": "Ergonomic Keyboard",
+        "quantity": 1.0,
+        "unit_price": 159.0
+      }
+    ],
+    "category": "office",
+    "_flagged": true,
+    "_flag_reasons": [
+      "total OVER 1000"
+    ],
+    "_source": "INVOICE #INV-2024-001\nDate: 2024-11-15\nFrom: Acme Office Supplies\nTo: Schema Labs Inc.\n\nItems:\n  1x Standing Desk Pro          $849.00\n  2x Monitor Arm Mount           $79.00 each\n  1x Ergonomic Keyboard         $159.00\n\nSubtotal: $1,166.00\nTax (8.5%): $99.11\nTotal: $1,265.11\n\nPayment Terms: Net 30"
+  },
+  {
+    "vendor": "CloudHost Pro",
+    "invoice_num": "7892",
+    "total": 2400.0,
+    "items": [
+      {
+        "description": "Annual hosting plan (Business tier)",
+        "quantity": 1.0,
+        "unit_price": 2400.0
+      }
+    ],
+    "category": "services",
+    "_flagged": true,
+    "_flag_reasons": [
+      "total OVER 1000"
+    ],
+    "_source": "Invoice Number: 7892\nDate: November 20, 2024\nVendor: CloudHost Pro\n\nService: Annual hosting plan (Business tier)\nPeriod: Dec 2024 - Nov 2025\nAmount: $2,400.00\n\nNotes: Auto-renewal enabled. Contact support@cloudhost.example to cancel.\n\nTotal Due: $2,400.00\nDue Date: December 1, 2024"
+  },
+  {
+    "vendor": "Mario's Italian Kitchen",
+    "invoice_num": "MIK-445",
+    "total": 650.0,
+    "items": [
+      {
+        "description": "Pasta Buffet (25 guests)",
+        "quantity": 25.0,
+        "unit_price": 15.0
+      },
+      {
+        "description": "Salad & Bread",
+        "quantity": 1.0,
+        "unit_price": 87.5
+      },
+      {
+        "description": "Beverages",
+        "quantity": 1.0,
+        "unit_price": 112.5
+      },
+      {
+        "description": "Delivery & Setup",
+        "quantity": 1.0,
+        "unit_price": 75.0
+      }
+    ],
+    "category": "meals",
+    "_flagged": false,
+    "_flag_reasons": [],
+    "_source": "Catering Invoice\nMario's Italian Kitchen\nInvoice #MIK-445\n\nEvent: Team Holiday Lunch\nDate of Service: December 12, 2024\nGuests: 25\n\nPasta Buffet (25 guests)     $375.00\nSalad & Bread                 $87.50\nBeverages                    $112.50\nDelivery & Setup              $75.00\n\nTotal: $650.00\nPaid via corporate card on file."
+  }
+]

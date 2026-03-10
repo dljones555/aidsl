@@ -1,0 +1,69 @@
+[
+  {
+    "claimant": "Rebecca Marsh",
+    "policy_number": "AUT-55892",
+    "claim_amount": 7400.0,
+    "num_items": 3.0,
+    "is_disputed": false,
+    "claim_type": "auto",
+    "items": [
+      {
+        "description": "Front bumper destroyed",
+        "amount": 3400.0
+      },
+      {
+        "description": "Driver side door dented",
+        "amount": 1800.0
+      },
+      {
+        "description": "Airbag replacement",
+        "amount": 2200.0
+      }
+    ],
+    "response": "Dear Rebecca Marsh,\n\nWe acknowledge receipt of your auto insurance claim under policy number AUT-55892, totaling $7,400.00 for damages including a destroyed front bumper, a dented driver side door, and airbag replacement. We understand how stressful these situations can be and appreciate you providing the necessary details.\n\nOur team will review your claim and keep you informed throughout the process. If you have any questions or require further assistance, please do not hesitate to contact us.\n\nSincerely,\nClaims Department",
+    "_draft_prompt": "You are an insurance claims assistant. Write a brief, professional acknowledgment letter for the claim described below. Include the claimant's name, policy number, claim type, and total amount. If the claim is disputed, note that the dispute will be reviewed. Keep the tone empathetic and professional. 2-3 paragraphs maximum.\n\nGiven the structured data below, generate the requested text.\nPut your response in the \"response\" field.\n\nReturn ONLY a valid JSON object with one field. No markdown, no explanation.",
+    "_flagged": false,
+    "_flag_reasons": [],
+    "_source": "Claimant: Rebecca Marsh\nPolicy Number: AUT-55892\nDate of Incident: January 15, 2025\n\nI was driving on Highway 101 when a deer ran into the road. I swerved to avoid it and hit the guardrail. Front bumper is destroyed ($3,400), driver side door dented ($1,800), and the airbag deployed which needs replacement ($2,200). Total damages estimated at $7,400. Not disputing anything, just want to get this fixed quickly."
+  },
+  {
+    "claimant": "David Park",
+    "policy_number": "PROP-82104",
+    "claim_amount": 15500.0,
+    "num_items": 5.0,
+    "is_disputed": true,
+    "claim_type": "property",
+    "items": [
+      {
+        "description": "Plumber repair",
+        "amount": 900.0
+      },
+      {
+        "description": "Ceiling replacement",
+        "amount": 4500.0
+      },
+      {
+        "description": "Hardwood floor refinishing",
+        "amount": 6800.0
+      },
+      {
+        "description": "Drywall repair",
+        "amount": 2100.0
+      },
+      {
+        "description": "Painting",
+        "amount": 1200.0
+      }
+    ],
+    "_flagged": true,
+    "_flag_reasons": [
+      "claim_amount OVER 10000",
+      "is_disputed IS true"
+    ],
+    "_source": "Claimant: David Park\nPolicy Number: PROP-82104\nDate of Incident: February 3, 2025\n\nMajor water damage from a burst pipe in the upstairs bathroom. The water soaked through the floor and damaged the ceiling below. Plumber repair $900, ceiling replacement $4,500, hardwood floor refinishing $6,800, drywall repair $2,100, and painting $1,200. Total claim is $15,500. I believe the pipe was defective and the builder should be liable, so I am disputing responsibility."
+  },
+  {
+    "_source": "Claimant: Angela Foster\nPolicy Number: LIA-33078\nDate of Incident: January 28, 2025\n\nA customer slipped on a wet floor in our store and broke their wrist. They are suing for medical bills ($12,000), lost wages ($3,500), and pain and suffering ($8,000). Total liability claim: $23,500. We had a wet floor sign posted but their attorney claims it was not visible. This is disputed.",
+    "_error": "extraction failed"
+  }
+]

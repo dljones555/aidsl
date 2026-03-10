@@ -1,0 +1,80 @@
+[
+  {
+    "name": "Jane Smith",
+    "email": "jane.smith@acme.com",
+    "phone": "503-555-0142",
+    "mailing_address": {
+      "street": "742 Evergreen Terrace",
+      "city": "Springfield",
+      "state": "IL",
+      "zip": "62704"
+    },
+    "postal_address": {
+      "street": "PO Box 1234",
+      "city": "Springfield",
+      "state": "IL",
+      "zip": "62701"
+    },
+    "_flagged": false,
+    "_flag_reasons": [],
+    "_source": {
+      "name": "Jane Smith",
+      "email": "jane.smith@acme.com",
+      "phone": "503-555-0142",
+      "mailing_address": "742 Evergreen Terrace, Springfield, IL 62704",
+      "postal_address": "PO Box 1234, Springfield, IL 62701"
+    }
+  },
+  {
+    "name": "Bob Johnson",
+    "email": "bob.j@widgets.io",
+    "phone": "971-555-0198",
+    "mailing_address": {
+      "street": "100 Main St",
+      "city": "Portland",
+      "state": "OR",
+      "zip": "97201"
+    },
+    "postal_address": {
+      "street": "200 Industrial Way, Suite 5",
+      "city": "Portland",
+      "state": "OR",
+      "zip": "97203"
+    },
+    "_flagged": false,
+    "_flag_reasons": [],
+    "_source": {
+      "name": "Bob Johnson",
+      "email": "bob.j@widgets.io",
+      "phone": "971-555-0198",
+      "mailing_address": "100 Main St, Portland, OR 97201",
+      "postal_address": "200 Industrial Way, Suite 5, Portland, OR 97203"
+    }
+  },
+  {
+    "name": "Maria Garcia",
+    "email": "m.garcia@example.org",
+    "phone": "212-555-0167",
+    "mailing_address": {
+      "street": "350 Fifth Ave",
+      "city": "New York",
+      "state": "NY",
+      "zip": "10118"
+    },
+    "postal_address": {
+      "street": "350 Fifth Ave",
+      "city": "New York",
+      "state": "NY",
+      "zip": "10118"
+    },
+    "_flagged": false,
+    "_flag_reasons": [],
+    "_source": {
+      "name": "Maria Garcia",
+      "email": "m.garcia@example.org",
+      "phone": "212-555-0167",
+      "mailing_address": "350 Fifth Ave, New York, NY 10118",
+      "postal_address": "350 Fifth Ave, New York, NY 10118"
+    }
+  }
+]
