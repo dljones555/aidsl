@@ -27,8 +27,8 @@ The proposal has six parts:
 2. **A DSL** that reads at the SQL-analyst level, compiles to a typed IR, and targets the kernel. A first iteration could target a fluent Python API that leverages the rich AI/ML library ecosystem and later or safe parts in Rust and MLIR. Notably, the DSL is the declarative infrastructure substrate authored by domain experts, not engineers.
 3. **A runtime abstraction** that binds the kernel to existing agent platforms (Claude Managed Agents, OpenAI Agents) or to a bare-metal implementation using Linux, Postgres, and object storage. No vendor lock-in. This more than a harness.
 4. **A generated UI layer** derived from DSL declarations, producing operational interfaces (queues, dashboards, HITL decision workspaces) that domain users actually work in. Consider Ruby on Rails or other generative UI frameworks that work from a domain model or tables as prior art.
-5. **Provenance graphs* execution plan; compute; verification; and human graphs that track and measure costs, metrics and auditable decisions and target JSON-L and O-Tel.
-6. **Cognitive fitness and human skills*: with the human AI cowork transition, it becomes imperative, without overreach, to understand how human work, cognitive load and effects, and how roles may be redefined with the required skills and costs for human review of AI and ongoing maintenance of skills and knowledge competency for workers. Let's consider this important aspect as primitives.
+5. **Provenance graphs** execution plan; compute; verification; and human graphs that track and measure costs, metrics and auditable decisions and target JSON-L and O-Tel.
+6. **Cognitive fitness and human skills**: with the human AI cowork transition, it becomes imperative, without overreach, to understand how human work, cognitive load and effects, and how roles may be redefined with the required skills and costs for human review of AI and ongoing maintenance of skills and knowledge competency for workers. Let's consider this important aspect as primitives.
 
 This RFC is seeking: technical review, collaborators for the kernel and compiler implementation, and pilot partners in generalized and regulated mid-market domains (insurance, healthcare, legal operations) where the thesis can be tested.
 
@@ -264,8 +264,8 @@ The AI-native equivalent needs those properties but for work that's not file-ori
 - `CONVERT` - not just language; translate between formats, audiences, or levels of abstraction (technical → executive).
 - `DIFF` - explain what changed between two versions in terms the user can act on. Not line-by-line — meaning-by-meaning.
 - `DRAFT` - draft
-- `PROMPT` + `WITH` - system, examples
-- 'eval'
+- `PROMPT` + `WITH` - prompt templates in file system preferred, though inline support. Can add with system, examples. Intended to support signed prompts and work with git as version control.  
+- 'EVAL' - how do we author, run and regress evals for a wide variety of domains, and use the best open source tool for this? This will work alongside pydantic. 
 
 Deterministic:
 - `SKILL` - Make a DSL block a skill
