@@ -32,7 +32,7 @@ The proposal has six parts:
 
 This RFC is seeking: technical review, collaborators for the kernel and compiler implementation, and pilot partners in generalized and regulated mid-market domains (insurance, healthcare, legal operations) where the thesis can be tested.
 
-While not open source, Anthropic's Claude for Managed Agents is a leading eovlution of this moving in the right direction. It's strength lies in separating the hands (tools/skills/harness) from the brain (model), and optimizing deterministic (LLM on GPU's) and proven non-deterministic components. We see it leveraging bash, git, file operations and concepts of sandboxed, resumable, longview sessions and environments as a lean set of primitives coupled with MCP, skills, web search, browser and compute use, and  context and tools alongside Markdown specs in a hierarchical system.
+While not open source, Anthropic's Claude for Managed Agents is a leading eovlution of this moving in the right direction. **It's strength lies in separating the hands (tools/skills/harness) from the brain (model), and optimizing deterministic (LLM on GPU's) and proven non-deterministic components (CPU based).** We see it leveraging bash, git, file operations and concepts of sandboxd, resumable, longview sessions and environments as a lean set of primitives coupled with MCP, skills, web search, browser and compute use, and  context and tools alongside Markdown specs in a hierarchical system.
 
 This is a specification seeking contributors and critique.
 
@@ -323,8 +323,8 @@ Each lowering has a verifier. Missing evidence requirements on GROUND calls, mis
 The same compiled IR runs on:
 
 1. **Claude Managed Agents** — the hosted runtime. Production-ready today. Fastest path for teams already on Anthropic.
-2. **OpenAI Agents SDK** — adapter. Proof the kernel isn't secretly coupled to one vendor.
-3. **Bare-metal** — cron + Postgres + systemd + object storage. The reference implementation. Proof the kernel can run on Linux primitives alone.
+2. **Bare-metal** — cron + Postgres + systemd + object storage. The reference implementation. Proof the kernel can run on Linux primitives alone.
+3. **Grok API** — adapter. Proof the kernel isn't secretly coupled to one vendor.
 
 The bare-metal implementation is the most important of the three because it's the portability guarantee. If the kernel works there, it works anywhere.
 
@@ -358,7 +358,7 @@ The generator uses an LLM against a typed component library — similar in spiri
 
 Each mode is generated from the same DSL declarations, projecting them differently for different audiences.
 
-We're going "workers" view over just chatbot, CLI or this bolted onto existing UI's.
+We're going "workers" view over just chatbot, CLI or these bolted onto existing UI's.
 
 ### What the UI deliberately avoids
 
