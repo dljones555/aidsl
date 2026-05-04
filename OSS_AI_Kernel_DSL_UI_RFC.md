@@ -1,4 +1,4 @@
-# RFC: An AI Execution Kernel, DSL and Genearted UI System for Human-AI Agent and Knowledge Work
+# RFC: An AI Execution Kernel, DSL and Generated UI System for Human-AI Agent and Knowledge Work
 
 **Status:** Early draft for discussion
 

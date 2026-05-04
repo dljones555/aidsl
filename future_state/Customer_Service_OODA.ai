@@ -1,0 +1,110 @@
+-- customer-service.ai
+-- Full rewrite of github.com/dljones555/managed-agent-goal-primitive
+-- Four Python files (~250 lines) → one .ai pipeline.
+--
+-- [det] = deterministic (no LLM).  [LLM] = one model call.
+-- Of seven steps in the learning loop, ONE is [LLM]. That's the pitch.
+
+SET MODEL claude-sonnet-4-6
+SET TEMPERATURE 0
+SET SEED 42
+
+-- ──────────────────────────────────────────────────────────────────────────
+-- Agent definition  (compiles to Managed Agents create_agent)
+-- ──────────────────────────────────────────────────────────────────────────
+
+DEFINE AGENT cs_agent:
+  SYSTEM PROMPT cs_instructions        -- prompts/cs_instructions.prompt
+  KNOWLEDGE FROM kb/*.md               -- injected into system, live
+  TOOLS [web_search, bash]
+  RULES:
+    - resolve in <= 10 turns
+    - escalate only when required; target < 15%
+    - on escalation say exactly: "Escalating this to a specialist."
+
+-- Escalation phrases — deterministic string match, no LLM re-eval.
+DEFINE ESCALATION_SIGNALS [
+  "escalating this to a specialist",
+  "transferring you to",
+  "human agent will",
+  "i'll connect you with"
+]
+
+-- ──────────────────────────────────────────────────────────────────────────
+-- Types
+-- ──────────────────────────────────────────────────────────────────────────
+
+DEFINE session:
+  session_id         TEXT
+  turns              NUMBER
+  csat               NUMBER            -- survey, 1–10
+  nps                NUMBER            -- survey, 0–10
+  escalated          YES/NO
+  escalation_reason  TEXT
+  transcript         TEXT
+
+DEFINE diagnosis:
+  pattern     TEXT
+  root_cause  ONE OF [doc_gap, tool_gap, policy_gap, prompt_gap]
+  evidence    TEXT
+  kb_file     TEXT
+  revision    TEXT
+
+-- ──────────────────────────────────────────────────────────────────────────
+-- Handle: run the actual customer conversation
+-- ──────────────────────────────────────────────────────────────────────────
+
+FROM incoming/customer_messages.jsonl
+
+HANDLE WITH cs_agent:                  -- [LLM] the conversation itself
+  UNTIL session.idle OR turns > 20
+  DETECT escalated WHEN                -- [det] string match on agent output
+    message.content CONTAINS ANY ESCALATION_SIGNALS
+  EMIT session
+
+MERGE survey FROM surveys/*.json       -- [det] attach post-session CSAT/NPS
+  ON session_id
+
+-- ──────────────────────────────────────────────────────────────────────────
+-- Gate: deterministic pass/fail. No LLM.
+-- ──────────────────────────────────────────────────────────────────────────
+
+METRICS PASS WHEN
+  csat  >= 5 AND
+  nps   >= 5 AND
+  turns <= 10
+
+FLAG WHEN escalated IS true
+OUTPUT gate_results.jsonl
+
+-- ──────────────────────────────────────────────────────────────────────────
+-- OODA: learning loop. One LLM call, three det steps.
+-- ──────────────────────────────────────────────────────────────────────────
+
+OODA WHEN failures OVER 3:
+  OBSERVE FROM gate_results.jsonl      -- [det] pure read
+    WHERE passed IS false LIMIT 20
+
+  ORIENT diagnosis                     -- [LLM] root-cause diagnosis
+    PROMPT orient_rca
+    EXAMPLES failure_samples
+
+  DECIDE                               -- [det] drop incomplete diagnoses
+    WHEN diagnosis.kb_file IS NOT NULL
+    AND  diagnosis.revision IS NOT NULL
+
+  ACT                                  -- [det] append dated block to KB
+    APPEND diagnosis.revision
+    TO kb/{diagnosis.kb_file}
+    STAMP "OODA revision {today} | root_cause: {diagnosis.root_cause}"
+
+  HOT_SWAP cs_agent                    -- [det] rebuild agent with revised KB
+
+-- ──────────────────────────────────────────────────────────────────────────
+-- Receipts  (maps to the four-graphs memory)
+-- ──────────────────────────────────────────────────────────────────────────
+
+AUDIT:
+  LOG SESSIONS  TO compute.jsonl       -- tokens, cost, latency per turn
+  LOG GATE      TO verify.jsonl        -- pass/fail + prompt_hash + source_hash
+  LOG OODA      TO human.jsonl         -- diagnoses + KB diff per revision
