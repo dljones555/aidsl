@@ -219,3 +219,19 @@ def test_run_is_deterministic():
         return ex.run("daily_scan").to_dict()
 
     assert run_once() == run_once()
+
+
+def test_file_model_consumes_entries_in_order(tmp_path):
+    """Super-muse mode: each response is served once, in file order."""
+    from ir import FileModel, NeedModelResponse
+
+    path = tmp_path / "responses.jsonl"
+    path.write_text('{"op": "a", "data": {"n": 1}}\n{"op": "a", "data": {"n": 2}}\n')
+    model = FileModel(path)
+    assert model.complete(op="a", prompt="p", schema={}).data == {"n": 1}
+    assert model.complete(op="a", prompt="p", schema={}).data == {"n": 2}
+    try:
+        model.complete(op="a", prompt="p", schema={})
+        raise AssertionError("should have raised NeedModelResponse")
+    except NeedModelResponse as e:
+        assert e.op == "a"

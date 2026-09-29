@@ -92,11 +92,12 @@ class FileModel:
 
     def complete(self, *, op: str, prompt: str, schema: dict[str, Any]) -> ModelResult:
         self.calls.append({"op": op, "prompt": prompt})
-        for entry in self._entries():
+        entries = self._entries()
+        for entry in entries:
             if entry.get("op") == op and not entry.get("consumed"):
                 entry["consumed"] = True
                 self.path.write_text(
-                    "\n".join(json.dumps(e) for e in self._entries()) + "\n"
+                    "\n".join(json.dumps(e) for e in entries) + "\n"
                 )
                 return ModelResult(
                     data=entry["data"],
