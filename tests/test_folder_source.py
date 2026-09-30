@@ -3,10 +3,9 @@ from __future__ import annotations
 import json
 from unittest.mock import MagicMock, patch
 
-from aidsl.parser import parse
 from aidsl.compiler import compile_program
+from aidsl.parser import parse
 from aidsl.runtime import _load_source, _row_to_text
-
 
 # --- _load_source unit tests ---
 

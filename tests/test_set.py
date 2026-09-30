@@ -2,10 +2,9 @@ from __future__ import annotations
 
 import textwrap
 
-from aidsl.parser import Settings, parse
 from aidsl.compiler import compile_program
+from aidsl.parser import Settings, parse
 from aidsl.runtime import _apply_settings
-
 
 # ---------------------------------------------------------------------------
 # Parser tests

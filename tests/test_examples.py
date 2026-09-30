@@ -1,8 +1,7 @@
 from __future__ import annotations
 
-from aidsl.parser import parse
 from aidsl.compiler import compile_program
-
+from aidsl.parser import parse
 
 # --- Parser tests ---
 

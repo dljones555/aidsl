@@ -4,17 +4,17 @@ from __future__ import annotations
 
 import json
 import sys
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 
-from aidsl.parser import parse
 from aidsl.compiler import compile_program
+from aidsl.parser import parse
 from aidsl.runtime import run
 
 HERE = Path(__file__).resolve().parent
-TIMESTAMP = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
+TIMESTAMP = datetime.now(UTC).strftime("%Y%m%dT%H%M%SZ")
 
 # Parse, compile, run
 program = parse(str(HERE / "pipeline.ai"))

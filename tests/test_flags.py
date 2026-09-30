@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from aidsl.compiler import FlagEvaluator
-from aidsl.parser import FlagRule, Condition
+from aidsl.parser import Condition, FlagRule
 
 
 def _evaluator(*rules: FlagRule) -> FlagEvaluator:

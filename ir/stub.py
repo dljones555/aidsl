@@ -96,9 +96,7 @@ class FileModel:
         for entry in entries:
             if entry.get("op") == op and not entry.get("consumed"):
                 entry["consumed"] = True
-                self.path.write_text(
-                    "\n".join(json.dumps(e) for e in entries) + "\n"
-                )
+                self.path.write_text("\n".join(json.dumps(e) for e in entries) + "\n")
                 return ModelResult(
                     data=entry["data"],
                     tokens_in=int(entry.get("tokens_in", 0)),
