@@ -94,23 +94,25 @@ def _resolve_binop(node: ast.BinOp, env: dict) -> object:
 
 def _resolve(node: ast.AST, env: dict) -> object:
     """Resolve one AST node against env. Dispatches by node type."""
-    if isinstance(node, ast.Expression):
-        return _resolve(node.body, env)
-    if isinstance(node, ast.Constant):
-        return node.value
-    if isinstance(node, ast.Name):
-        return _resolve_name(node, env)
-    if isinstance(node, ast.Attribute):
-        return _resolve_attr(node, env)
-    if isinstance(node, ast.BoolOp):
-        return _resolve_boolop(node, env)
-    if isinstance(node, ast.UnaryOp):
-        return _resolve_unary(node, env)
-    if isinstance(node, ast.Compare):
-        return _resolve_compare(node, env)
-    if isinstance(node, ast.BinOp):
-        return _resolve_binop(node, env)
-    raise ValueError(f"unsupported expression: {ast.dump(node)}")
+    match node:
+        case ast.Expression():
+            return _resolve(node.body, env)
+        case ast.Constant():
+            return node.value
+        case ast.Name():
+            return _resolve_name(node, env)
+        case ast.Attribute():
+            return _resolve_attr(node, env)
+        case ast.BoolOp():
+            return _resolve_boolop(node, env)
+        case ast.UnaryOp():
+            return _resolve_unary(node, env)
+        case ast.Compare():
+            return _resolve_compare(node, env)
+        case ast.BinOp():
+            return _resolve_binop(node, env)
+        case _:
+            raise ValueError(f"unsupported expression: {ast.dump(node)}")
 
 
 def parse_ok(expr: str) -> bool:
