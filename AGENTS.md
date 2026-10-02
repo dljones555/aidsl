@@ -31,6 +31,16 @@ Use Opus for:
 - Deterministic logic (FLAG WHEN, CHECK) should never call the LLM
 - All LLM calls go through _make_llm_extractor or similar factory pattern
 
+## Python idiom (lean)
+
+- Names: CapWords for classes, snake_case for functions/methods/modules/variables, UPPER_SNAKE for constants.
+- Type hints on all public functions; keep mypy-clean.
+- Small classes, small functions — one job each. A class with one real method besides `__init__` wants to be a function.
+- Composition and duck typing over interface hierarchies. Reach for Protocol/ABC only when the formality earns it; no I-prefixes.
+- Single leading underscore marks private ("we're all consenting adults").
+- SOLID applies lightly: single responsibility via small modules and functions, not class trees.
+- Style reference: encode/httpx — fully type-annotated, small single-purpose modules, strict lint+typecheck CI.
+
 ## Testing
 
 - NO simulated/regex mock extractors in production code

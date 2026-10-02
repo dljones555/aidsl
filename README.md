@@ -72,17 +72,19 @@ from aidsl import Pipeline, SchemaBuilder
 claim = SchemaBuilder.from_json("schemas/claim.json")
 
 # Same schema defined inline, no file needed
-claim = SchemaBuilder.from_json({
-    "name": "claim",
-    "fields": {
-        "claimant":      "text",
-        "policy_number": "text",
-        "claim_amount":  "money",
-        "num_items":     "number",
-        "is_disputed":   "bool",
-        "claim_type":    ["auto", "property", "health", "liability"],
+claim = SchemaBuilder.from_json(
+    {
+        "name": "claim",
+        "fields": {
+            "claimant": "text",
+            "policy_number": "text",
+            "claim_amount": "money",
+            "num_items": "number",
+            "is_disputed": "bool",
+            "claim_type": ["auto", "property", "health", "liability"],
+        },
     }
-})
+)
 
 results = (
     Pipeline()

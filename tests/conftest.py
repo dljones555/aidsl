@@ -5,8 +5,8 @@ import textwrap
 
 import pytest
 
-from aidsl.parser import parse, Program
-from aidsl.compiler import compile_program, ExecutionPlan
+from aidsl.compiler import ExecutionPlan, compile_program
+from aidsl.parser import Program, parse
 
 
 @pytest.fixture()

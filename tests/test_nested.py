@@ -4,10 +4,9 @@ import textwrap
 
 import pytest
 
-from aidsl.parser import parse
 from aidsl.compiler import compile_program
+from aidsl.parser import parse
 from aidsl.runtime import _validate
-
 
 # ---------------------------------------------------------------------------
 # Parser tests

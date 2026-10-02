@@ -1,4 +1,4 @@
-from aidsl import skill, stage, field, api, compute, rule, hitl
+from aidsl import api, compute, field, hitl, rule, skill, stage
 
 # -----------------------------
 # Domain Objects
@@ -10,7 +10,7 @@ ticket = {
     "subject": field.text,
     "body": field.text,
     "channel": field.one_of("email", "chat", "web"),
-    "created_at": field.datetime
+    "created_at": field.datetime,
 }
 
 ticket_analysis = {
@@ -18,7 +18,7 @@ ticket_analysis = {
     "summary": field.text,
     "severity": field.number,
     "category": field.one_of("billing", "technical", "account", "other"),
-    "requires_human": field.boolean
+    "requires_human": field.boolean,
 }
 
 customer_profile = {
@@ -26,17 +26,14 @@ customer_profile = {
     "name": field.text,
     "tier": field.one_of("free", "standard", "premium"),
     "open_balance": field.money,
-    "risk_score": field.number
+    "risk_score": field.number,
 }
 
 # -----------------------------
 # API
 # -----------------------------
 
-customer_api = api(
-    base="https://api.example.com/customers",
-    auth="env:API_KEY"
-)
+customer_api = api(base="https://api.example.com/customers", auth="env:API_KEY")
 
 # -----------------------------
 # Stages
@@ -70,10 +67,10 @@ draft_reply = (
     .from_("ticket", "ticket_analysis", "fetch_customer_profile")
     .prompt("ticket_reply_generation")
     .route_if("ticket_analysis.requires_human")
-        .wait_for(hitl("review_ticket"))
-        .use("human_edited_reply")
+    .wait_for(hitl("review_ticket"))
+    .use("human_edited_reply")
     .otherwise()
-        .use("reply")
+    .use("reply")
 )
 
 # -----------------------------
@@ -82,10 +79,12 @@ draft_reply = (
 
 rules = [
     rule("ticket_analysis.severity > 7").set("ticket_analysis.requires_human", True),
-    rule("ticket_analysis.category == 'billing' and fetch_customer_profile.open_balance > 500")
-        .set("ticket_analysis.requires_human", True),
-    rule("fetch_customer_profile.tier == 'premium'")
-        .set("ticket_analysis.requires_human", True)
+    rule(
+        "ticket_analysis.category == 'billing' and fetch_customer_profile.open_balance > 500"
+    ).set("ticket_analysis.requires_human", True),
+    rule("fetch_customer_profile.tier == 'premium'").set(
+        "ticket_analysis.requires_human", True
+    ),
 ]
 
 # -----------------------------
@@ -103,13 +102,13 @@ support_triage = (
     .compute(
         compute.default("cpu"),
         compute.gpu_for("classify_ticket"),
-        compute.max_cost(2.00)
+        compute.max_cost(2.00),
     )
     .audit(
         plan="logs/plan.json",
         stages="logs/stages.json",
         models="logs/models.json",
         api="logs/api.json",
-        hitl="logs/hitl.json"
+        hitl="logs/hitl.json",
     )
 )

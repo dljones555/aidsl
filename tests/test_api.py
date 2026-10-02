@@ -6,9 +6,7 @@ import pytest
 
 from aidsl.api import Pipeline, SchemaBuilder
 from aidsl.compiler import compile_program
-
 from tests.conftest import make_llm_response
-
 
 # ---------------------------------------------------------------------------
 # SchemaBuilder tests

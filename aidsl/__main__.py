@@ -3,8 +3,8 @@ from __future__ import annotations
 import sys
 from pathlib import Path
 
-from .parser import parse
 from .compiler import compile_program
+from .parser import parse
 from .runtime import run
 
 

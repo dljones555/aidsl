@@ -212,9 +212,7 @@ def _field_to_json_schema(f: FieldDef, all_schemas: dict[str, Schema]) -> dict:
     """Convert a FieldDef to a JSON schema fragment, resolving nested types."""
     if f.type == "TEXT":
         return {"type": "string"}
-    elif f.type == "MONEY":
-        return {"type": "number"}
-    elif f.type == "NUMBER":
+    elif f.type == "MONEY" or f.type == "NUMBER":
         return {"type": "number"}
     elif f.type == "BOOL":
         return {"type": "boolean"}

@@ -2,8 +2,8 @@ from __future__ import annotations
 
 from unittest.mock import MagicMock, patch
 
-from aidsl.parser import parse
 from aidsl.compiler import compile_program
+from aidsl.parser import parse
 from aidsl.runtime import run
 from tests.conftest import make_llm_response
 
