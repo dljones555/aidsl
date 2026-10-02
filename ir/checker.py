@@ -117,13 +117,16 @@ def _check_audits(spec: Spec, v: list[Violation]) -> None:
 def _find_cycle(plan: Plan) -> list[str]:
     """One dependency cycle as a var path (a -> b -> a), or [] if acyclic."""
     known = {s.var for s in plan.steps}
+    # Unknown refs are IR-10's job; filter them so they can't crash this walk.
     deps = {s.var: [d for d in s.depends_on if d in known] for s in plan.steps}
     visiting: list[str] = []  # the current DFS path
     visited: set[str] = set()
 
     def visit(var: str) -> list[str]:
         if var in visiting:
-            return visiting[visiting.index(var) :] + [var]
+            # Re-entered a var already on the current path: the slice from
+            # its first occurrence, closed by repeating the var, is the cycle.
+            return visiting[visiting.index(var):] + [var]
         if var in visited:
             return []
         visiting.append(var)
