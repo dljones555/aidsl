@@ -8,7 +8,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
-from . import eval as ir_eval
+from . import evaluator as ir_evaluator
 from .model import AUDIT_ACTIONS, BUILTIN_TYPES, Effect, Spec
 
 
@@ -29,12 +29,9 @@ def _base_type(t: str) -> str:
     return t
 
 
-def check(spec: Spec) -> list[Violation]:
-    v: list[Violation] = []
+def _check_plan_refs(spec: Spec, v: list[Violation]) -> None:
+    """Steps must call defined ops; when-clauses must parse. (IR-01, IR-08, IR-09)"""
     op_names = [o.name for o in spec.ops]
-    gate_names = [g.name for g in spec.gates]
-    type_names = {t.name for t in spec.types} | BUILTIN_TYPES | {"enum"}
-
     for name in set(op_names):
         if op_names.count(name) > 1:
             v.append(Violation("IR-08", f"duplicate op name: {name}"))
@@ -48,7 +45,7 @@ def check(spec: Spec) -> list[Violation]:
                         f"undefined op '{step.op}'",
                     )
                 )
-            if step.when and not ir_eval.parse_ok(step.when):
+            if step.when and not ir_evaluator.parse_ok(step.when):
                 v.append(
                     Violation(
                         "IR-09",
@@ -57,6 +54,12 @@ def check(spec: Spec) -> list[Violation]:
                     )
                 )
 
+
+def _check_op_contracts(spec: Spec, v: list[Violation]) -> None:
+    """Gates must exist, return types must be declared, external ops need a
+    gate or a deny list, and pure ops must not declare prompts. (IR-02..IR-05)"""
+    gate_names = [g.name for g in spec.gates]
+    type_names = {t.name for t in spec.types} | BUILTIN_TYPES | {"enum"}
     for op in spec.ops:
         if op.gate and op.gate not in gate_names:
             v.append(
@@ -90,6 +93,9 @@ def check(spec: Spec) -> list[Violation]:
                 )
             )
 
+
+def _check_audits(spec: Spec, v: list[Violation]) -> None:
+    """Audit rules need known actions and parsable expressions. (IR-06, IR-07)"""
     for audit in spec.audits:
         if audit.action not in AUDIT_ACTIONS:
             v.append(
@@ -99,7 +105,7 @@ def check(spec: Spec) -> list[Violation]:
                     f"'{audit.action}' (want one of {sorted(AUDIT_ACTIONS)})",
                 )
             )
-        if not ir_eval.parse_ok(audit.expr):
+        if not ir_evaluator.parse_ok(audit.expr):
             v.append(
                 Violation(
                     "IR-07",
@@ -107,4 +113,11 @@ def check(spec: Spec) -> list[Violation]:
                 )
             )
 
+
+def check(spec: Spec) -> list[Violation]:
+    """Check a spec. Returns violations; an empty list means runnable."""
+    v: list[Violation] = []
+    _check_plan_refs(spec, v)
+    _check_op_contracts(spec, v)
+    _check_audits(spec, v)
     return v

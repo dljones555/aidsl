@@ -75,10 +75,11 @@ def _flag_to_expr(conditions: list[Condition], conjunctions: list[str]) -> str:
     return expr
 
 
-def lower_program(program: Program, name: str = "spec", version: str = "v1") -> Spec:
-    """Lower an aidsl Program AST to an IR Spec."""
-    spec = Spec(name=name, version=version)
-
+def _lower_types(program: Program, spec: Spec) -> None:
+    """DEFINE <schema> -> IR type. Portable declarations; the Layer 1
+    compiler (aidsl/compiler.py) separately builds Pydantic models from
+    these for runtime validation — the IR itself takes no Pydantic
+    dependency, so the definition stays portable."""
     for sname, schema in program.schemas.items():
         tdef = TypeDef(name=sname.lower())
         for f in schema.fields:
@@ -87,74 +88,108 @@ def lower_program(program: Program, name: str = "spec", version: str = "v1") -> 
             )
         spec.types.append(tdef)
 
+
+def _lower_source(program: Program, spec: Spec) -> None:
+    """FROM <source> -> knowledge entry. fs:// names a file; the host
+    binding reads it (jsonl = one JSON record per line, the stream
+    convention for record lists)."""
     if program.source:
         target = (program.extract_target or "records").lower()
         spec.knowledge.append(
             Knowledge(name=f"{target}_source", uri=f"fs://{program.source}")
         )
 
-    target = (program.extract_target or "record").lower()
-    prompt = program.prompt_name or "default"
 
-    last_var = ""
-    steps: list[PlanStep] = []
+def _lower_extract(
+    program: Program, spec: Spec, target: str, prompt: str, steps: list[PlanStep]
+) -> str:
+    """EXTRACT -> external op calling the model. Returns the result var."""
+    if not program.extract_target:
+        return ""
+    # "using" names the prompt; the host binding resolves the name to the
+    # prompt text and where it lives. The IR never holds prompt bodies.
+    op = Op(
+        name=f"extract_{target}",
+        params=["source"],
+        returns=target,
+        effect=Effect.EXTERNAL,
+        capability="model.complete",
+        using=prompt,
+        using_kind="prompt",
+    )
+    spec.ops.append(op)
+    steps.append(PlanStep(var="raw", op=op.name, args=[f"{target}_source"]))
+    return "raw"
 
-    if program.extract_target:
-        op = Op(
-            name=f"extract_{target}",
-            params=["source"],
-            returns=target,
-            effect=Effect.EXTERNAL,
-            capability="model.complete",
-            using=prompt,
-            using_kind="prompt",
-        )
-        spec.ops.append(op)
-        last_var = "raw"
-        steps.append(PlanStep(var=last_var, op=op.name, args=[f"{target}_source"]))
 
-    if program.classify:
-        cfield = program.classify.field_name or "classification"
-        op = Op(
-            name=f"classify_{cfield}",
-            params=[last_var or target],
-            returns=target,
-            effect=Effect.EXTERNAL,
-            capability="model.complete",
-            using=prompt,
-            using_kind="prompt",
-        )
-        spec.ops.append(op)
-        prev, last_var = last_var, "classified"
-        steps.append(PlanStep(var=last_var, op=op.name, args=[prev]))
+def _lower_classify(
+    program: Program,
+    spec: Spec,
+    target: str,
+    prompt: str,
+    last_var: str,
+    steps: list[PlanStep],
+) -> str:
+    """CLASSIFY -> external op. Returns the result var (unchanged if absent)."""
+    if not program.classify:
+        return last_var
+    cfield = program.classify.field_name or "classification"
+    op = Op(
+        name=f"classify_{cfield}",
+        params=[last_var or target],
+        returns=target,
+        effect=Effect.EXTERNAL,
+        capability="model.complete",
+        using=prompt,
+        using_kind="prompt",
+    )
+    spec.ops.append(op)
+    prev, last_var = last_var, "classified"
+    steps.append(PlanStep(var=last_var, op=op.name, args=[prev]))
+    return last_var
 
-    if program.draft:
-        dfield = program.draft.field_name or "draft"
-        prompt_name = program.draft.prompt_name or prompt
-        op = Op(
-            name=f"draft_{dfield}",
-            params=[last_var or target],
-            returns="draft",
-            effect=Effect.EXTERNAL,
-            capability="model.complete",
-            using=prompt_name,
-            using_kind="prompt",
-        )
-        spec.ops.append(op)
-        if not any(t.name == "draft" for t in spec.types):
-            spec.types.append(
-                TypeDef(
-                    "draft",
-                    [
-                        Field("to", "text"),
-                        Field("subject", "text"),
-                        Field("body", "text"),
-                    ],
-                )
+
+def _lower_draft(
+    program: Program,
+    spec: Spec,
+    target: str,
+    prompt: str,
+    last_var: str,
+    steps: list[PlanStep],
+) -> str:
+    """DRAFT -> external op, plus the draft record type. Returns the result var."""
+    if not program.draft:
+        return last_var
+    dfield = program.draft.field_name or "draft"
+    prompt_name = program.draft.prompt_name or prompt
+    op = Op(
+        name=f"draft_{dfield}",
+        params=[last_var or target],
+        returns="draft",
+        effect=Effect.EXTERNAL,
+        capability="model.complete",
+        using=prompt_name,
+        using_kind="prompt",
+    )
+    spec.ops.append(op)
+    if not any(t.name == "draft" for t in spec.types):
+        spec.types.append(
+            TypeDef(
+                "draft",
+                [
+                    Field("to", "text"),
+                    Field("subject", "text"),
+                    Field("body", "text"),
+                ],
             )
-        prev, last_var = last_var, "drafted"
-        steps.append(PlanStep(var=last_var, op=op.name, args=[prev]))
+        )
+    prev, last_var = last_var, "drafted"
+    steps.append(PlanStep(var=last_var, op=op.name, args=[prev]))
+    return last_var
 
+
+def _lower_flags(program: Program, spec: Spec) -> None:
+    """FLAG WHEN -> standing audit rules (action flag). Deterministic policy."""
     for i, flag in enumerate(program.flags, 1):
         spec.audits.append(
             AuditRule(
@@ -164,17 +199,47 @@ def lower_program(program: Program, name: str = "spec", version: str = "v1") -> 
             )
         )
 
-    if program.output:
-        op = Op(
-            name="write_output",
-            params=[last_var or target],
-            returns="receipt",
-            effect=Effect.RECORDED,
-            capability="fs.write",
-        )
-        spec.ops.append(op)
-        steps.append(PlanStep(var="out", op=op.name, args=[last_var or target]))
 
+def _lower_output(
+    program: Program,
+    spec: Spec,
+    target: str,
+    last_var: str,
+    steps: list[PlanStep],
+) -> None:
+    """OUTPUT -> recorded op: the receipt sink (fs.write capability)."""
+    if not program.output:
+        return
+    op = Op(
+        name="write_output",
+        params=[last_var or target],
+        returns="receipt",
+        effect=Effect.RECORDED,
+        capability="fs.write",
+    )
+    spec.ops.append(op)
+    steps.append(PlanStep(var="out", op=op.name, args=[last_var or target]))
+
+
+def _lower_ops(program: Program, spec: Spec) -> list[PlanStep]:
+    """Thread the verb ops into plan steps: extract -> classify -> draft -> output."""
+    target = (program.extract_target or "record").lower()
+    prompt = program.prompt_name or "default"
+    steps: list[PlanStep] = []
+    last_var = _lower_extract(program, spec, target, prompt, steps)
+    last_var = _lower_classify(program, spec, target, prompt, last_var, steps)
+    last_var = _lower_draft(program, spec, target, prompt, last_var, steps)
+    _lower_flags(program, spec)
+    _lower_output(program, spec, target, last_var, steps)
+    return steps
+
+
+def lower_program(program: Program, name: str = "spec", version: str = "v1") -> Spec:
+    """Lower an aidsl Program AST to an IR Spec."""
+    spec = Spec(name=name, version=version)
+    _lower_types(program, spec)
+    _lower_source(program, spec)
+    steps = _lower_ops(program, spec)
     if steps:
         spec.plans.append(Plan(name="main", steps=steps))
 

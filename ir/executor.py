@@ -25,8 +25,8 @@ from collections.abc import Callable
 from dataclasses import dataclass, field
 from typing import Any
 
-from . import eval as ir_eval
-from .model import Effect, Op, Spec
+from . import evaluator as ir_evaluator
+from .model import Effect, Op, Plan, PlanStep, Spec
 from .stub import GateIO, ModelClient, ModelResult
 
 PROCEED_VERDICTS = {"approve", "advance"}
@@ -125,7 +125,7 @@ def _flag_audits(spec: Spec, record: Any) -> list[str]:
         if audit.action != "flag":
             continue
         try:
-            fired_now = bool(ir_eval.evaluate(audit.expr, dict(env)))
+            fired_now = bool(ir_evaluator.evaluate(audit.expr, dict(env)))
         except Exception:  # noqa: BLE001 - a broken audit must not crash a run
             fired_now = False
         if fired_now:
@@ -151,12 +151,18 @@ class Executor:
     def _denied(self, op: Op) -> bool:
         return any(d == op.name or d == op.capability for d in self.spec.deny)
 
-    def run(self, plan_name: str = "") -> RunReceipt:
+    def _find_plan(self, plan_name: str) -> Plan:
+        """Locate the plan to run; an empty name means the first plan."""
         plan = next(
             (p for p in self.spec.plans if not plan_name or p.name == plan_name), None
         )
         if plan is None:
             raise ValueError(f"no plan {plan_name!r} in spec {self.spec.name}")
+        return plan
+
+    def run(self, plan_name: str = "") -> RunReceipt:
+        """Run a plan. Suspends on human gates, stops on deny, else completes."""
+        plan = self._find_plan(plan_name)
         receipt = RunReceipt(
             spec=self.spec.name, version=self.spec.version, plan=plan.name
         )
@@ -175,32 +181,7 @@ class Executor:
                 outputs_digest="",
             )
             try:
-                if len(args) == 1 and isinstance(args[0], list):
-                    items = args[0]
-                    if step.when:
-                        items = [
-                            it
-                            for it in items
-                            if ir_eval.evaluate(step.when, {step.args[0]: it})
-                        ]
-                    outputs = [self._call(op, it, sr) for it in items]
-                    outputs = [o for o in outputs if not isinstance(o, _Dropped)]
-                    env[step.var] = outputs
-                else:
-                    if step.when and not ir_eval.evaluate(
-                        step.when, dict(zip(step.args, args))
-                    ):
-                        sr.skipped = True
-                        env[step.var] = None
-                    else:
-                        arg = args[0] if len(args) == 1 else args
-                        out = self._call(op, arg, sr)
-                        if isinstance(out, _Dropped):
-                            sr.dropped = True
-                            env[step.var] = None
-                        else:
-                            env[step.var] = out
-                sr.outputs_digest = _digest(env[step.var])
+                self._execute_step(step, op, env, sr, args)
             except _Suspended:
                 receipt.steps.append(sr)
                 receipt.status = "suspended"
@@ -213,6 +194,66 @@ class Executor:
             receipt.tokens_used += sr.tokens_in + sr.tokens_out
             receipt.steps.append(sr)
 
+        self._apply_budget_audits(receipt)
+        return receipt
+
+    def _execute_step(
+        self,
+        step: PlanStep,
+        op: Op,
+        env: dict[str, Any],
+        sr: StepReceipt,
+        args: list[Any],
+    ) -> None:
+        """Run one step: fan out over list args, when-filter, or a single call."""
+        if len(args) == 1 and isinstance(args[0], list):
+            self._execute_fanout(step, op, env, sr, args[0])
+        elif step.when and not ir_evaluator.evaluate(
+            step.when, dict(zip(step.args, args))
+        ):
+            sr.skipped = True
+            env[step.var] = None
+        else:
+            self._execute_single(step, op, env, sr, args)
+        sr.outputs_digest = _digest(env[step.var])
+
+    def _execute_fanout(
+        self,
+        step: PlanStep,
+        op: Op,
+        env: dict[str, Any],
+        sr: StepReceipt,
+        items: list[Any],
+    ) -> None:
+        """A list arg fans out: optional when-filter, then one call per element."""
+        if step.when:
+            items = [
+                it
+                for it in items
+                if ir_evaluator.evaluate(step.when, {step.args[0]: it})
+            ]
+        outputs = [self._call(op, it, sr) for it in items]
+        env[step.var] = [o for o in outputs if not isinstance(o, _Dropped)]
+
+    def _execute_single(
+        self,
+        step: PlanStep,
+        op: Op,
+        env: dict[str, Any],
+        sr: StepReceipt,
+        args: list[Any],
+    ) -> None:
+        """A scalar step: one call; a rejecting gate verdict drops the item."""
+        arg = args[0] if len(args) == 1 else args
+        out = self._call(op, arg, sr)
+        if isinstance(out, _Dropped):
+            sr.dropped = True
+            env[step.var] = None
+        else:
+            env[step.var] = out
+
+    def _apply_budget_audits(self, receipt: RunReceipt) -> None:
+        """Budget audits (suspend/deny) run after the plan; failures are recorded."""
         receipt.human_minutes_used = HUMAN_MINUTES_PER_VERDICT * sum(
             1 for s in receipt.steps if s.verdict
         )
@@ -224,58 +265,64 @@ class Executor:
         for audit in self.spec.audits:
             if audit.action in ("suspend", "deny"):
                 try:
-                    if not ir_eval.evaluate(audit.expr, metrics):
+                    if not ir_evaluator.evaluate(audit.expr, metrics):
                         receipt.audit_failures.append(audit.name)
                 except Exception as e:  # noqa: BLE001 - eval failure IS an audit failure
                     receipt.audit_failures.append(f"{audit.name} (eval error: {e})")
-        return receipt
 
     def _call(self, op: Op, inputs: Any, sr: StepReceipt) -> Any:
+        """Dispatch one op call by effect lane."""
         if op.effect in (Effect.PURE, Effect.RECORDED):
             fn = self.op_impls.get(op.name)
             if fn is None:
                 raise ValueError(f"no implementation for op '{op.name}'")
             return fn(inputs)
-
         if op.effect == Effect.EXTERNAL:
-            if self._denied(op) and not op.gate:
-                raise _Denied(f"op '{op.name}' denied by spec deny list")
-
-            if op.gate:
-                gate = self.gates[op.gate]
-                verdict = ""
-                if self.gate_io is not None:
-                    verdict = self.gate_io.ask_verdict(gate, inputs) or ""
-                sr.gate = gate.name
-                sr.verdict = verdict
-                if not verdict:
-                    sr.suspended = True
-                    raise _Suspended(f"gate '{gate.name}' awaiting verdict")
-                if verdict not in PROCEED_VERDICTS:
-                    return _Dropped()
-
-            if self._denied(op):
-                # Human approved, but shadow mode: the send exists in the
-                # spec but cannot run yet.
-                sr.shadow_blocked = True
-                return None
-
-            result: ModelResult = self.model.complete(
-                op=op.name,
-                prompt=prompt_for_op(op, inputs),
-                schema={"returns": op.returns},
-            )
-            sr.tokens_in += result.tokens_in
-            sr.tokens_out += result.tokens_out
-            data = result.data
-            records = data if isinstance(data, list) else [data]
-            for rec in records:
-                for f in _flag_audits(self.spec, rec):
-                    if f not in sr.flags:
-                        sr.flags.append(f)
-            return data
-
+            return self._call_external(op, inputs, sr)
         if op.effect == Effect.SUSPEND:
             raise _Suspended(f"op '{op.name}' suspends")
-
         raise ValueError(f"unknown effect {op.effect}")
+
+    def _ask_gate(self, op: Op, inputs: Any, sr: StepReceipt) -> str:
+        """Ask the human for a gate verdict; records gate and verdict on the receipt."""
+        gate = self.gates[op.gate]
+        verdict = ""
+        if self.gate_io is not None:
+            verdict = self.gate_io.ask_verdict(gate, inputs) or ""
+        sr.gate = gate.name
+        sr.verdict = verdict
+        return verdict
+
+    def _call_external(self, op: Op, inputs: Any, sr: StepReceipt) -> Any:
+        """External op: deny list, human gate, shadow mode, then the model call."""
+        if self._denied(op) and not op.gate:
+            raise _Denied(f"op '{op.name}' denied by spec deny list")
+
+        if op.gate:
+            verdict = self._ask_gate(op, inputs, sr)
+            if not verdict:
+                sr.suspended = True
+                raise _Suspended(f"gate '{op.gate}' awaiting verdict")
+            if verdict not in PROCEED_VERDICTS:
+                return _Dropped()
+
+        if self._denied(op):
+            # Human approved, but shadow mode: the send exists in the
+            # spec but cannot run yet.
+            sr.shadow_blocked = True
+            return None
+
+        result: ModelResult = self.model.complete(
+            op=op.name,
+            prompt=prompt_for_op(op, inputs),
+            schema={"returns": op.returns},
+        )
+        sr.tokens_in += result.tokens_in
+        sr.tokens_out += result.tokens_out
+        data = result.data
+        records = data if isinstance(data, list) else [data]
+        for rec in records:
+            for f in _flag_audits(self.spec, rec):
+                if f not in sr.flags:
+                    sr.flags.append(f)
+        return data

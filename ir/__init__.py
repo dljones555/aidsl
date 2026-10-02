@@ -2,9 +2,9 @@
 
 from __future__ import annotations
 
-from .check import Violation, check
-from .eval import evaluate, parse_ok
-from .exec import Executor, RunReceipt, StepReceipt
+from .checker import Violation, check
+from .evaluator import evaluate, parse_ok
+from .executor import Executor, RunReceipt, StepReceipt
 from .lower import lower_program
 from .model import (
     AuditRule,
