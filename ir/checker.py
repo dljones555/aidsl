@@ -9,7 +9,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 
 from . import evaluator as ir_evaluator
-from .model import AUDIT_ACTIONS, BUILTIN_TYPES, Effect, Spec
+from .model import AUDIT_ACTIONS, BUILTIN_TYPES, Effect, Plan, Spec
 
 
 @dataclass
@@ -114,10 +114,64 @@ def _check_audits(spec: Spec, v: list[Violation]) -> None:
             )
 
 
+def _find_cycle(plan: Plan) -> list[str]:
+    """One dependency cycle as a var path (a -> b -> a), or [] if acyclic."""
+    known = {s.var for s in plan.steps}
+    deps = {s.var: [d for d in s.depends_on if d in known] for s in plan.steps}
+    visiting: list[str] = []  # the current DFS path
+    visited: set[str] = set()
+
+    def visit(var: str) -> list[str]:
+        if var in visiting:
+            return visiting[visiting.index(var) :] + [var]
+        if var in visited:
+            return []
+        visiting.append(var)
+        for dep in deps[var]:
+            hit = visit(dep)
+            if hit:
+                return hit
+        visiting.pop()
+        visited.add(var)
+        return []
+
+    for step in plan.steps:
+        hit = visit(step.var)
+        if hit:
+            return hit
+    return []
+
+
+def _check_plan_dependencies(spec: Spec, v: list[Violation]) -> None:
+    """depends_on must name steps in the same plan, and the graph must be
+    acyclic — otherwise no execution order exists. (IR-10, IR-11)"""
+    for plan in spec.plans:
+        step_vars = {s.var for s in plan.steps}
+        for step in plan.steps:
+            for dep in step.depends_on:
+                if dep not in step_vars:
+                    v.append(
+                        Violation(
+                            "IR-10",
+                            f"plan '{plan.name}' step '{step.var}' depends on "
+                            f"unknown step '{dep}'",
+                        )
+                    )
+        cycle = _find_cycle(plan)
+        if cycle:
+            v.append(
+                Violation(
+                    "IR-11",
+                    f"plan '{plan.name}' has a dependency cycle: {' -> '.join(cycle)}",
+                )
+            )
+
+
 def check(spec: Spec) -> list[Violation]:
     """Check a spec. Returns violations; an empty list means runnable."""
     v: list[Violation] = []
     _check_plan_refs(spec, v)
+    _check_plan_dependencies(spec, v)
     _check_op_contracts(spec, v)
     _check_audits(spec, v)
     return v
