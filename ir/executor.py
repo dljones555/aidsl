@@ -48,6 +48,7 @@ class StepReceipt:
     gate: str = ""
     verdict: str = ""
     skipped: bool = False
+    skip_reason: str = ""  # why skipped: "when condition false" or cascade
     suspended: bool = False
     shadow_blocked: bool = False
     dropped: bool = False
@@ -86,6 +87,7 @@ class RunReceipt:
                     "gate": s.gate,
                     "verdict": s.verdict,
                     "skipped": s.skipped,
+                    "skip_reason": s.skip_reason,
                     "suspended": s.suspended,
                     "shadow_blocked": s.shadow_blocked,
                     "dropped": s.dropped,
@@ -210,6 +212,7 @@ class Executor:
         # dependencies are parallelizable by DAG-capable backends —
         # ordering and concurrency permission derive from this same
         # declaration; each backend owns its own scheduling.
+        skipped: set[str] = set()  # vars whose steps produced no output
         for step in _topo_order(plan):
             op = self.ops.get(step.op)
             if op is None:
@@ -222,6 +225,20 @@ class Executor:
                 inputs_digest=_digest(args),
                 outputs_digest="",
             )
+            # Cascade skip: a step whose dependency was skipped is skipped
+            # too — no data, no run. Topo order guarantees the dependency
+            # was already processed, so `skipped` is complete here.
+            blocked_by = next(
+                (d for d in step.depends_on if d in skipped), None
+            )
+            if blocked_by is not None:
+                sr.skipped = True
+                sr.skip_reason = f"dependency '{blocked_by}' was skipped"
+                skipped.add(step.var)
+                env[step.var] = None
+                sr.outputs_digest = _digest(None)
+                receipt.steps.append(sr)
+                continue
             try:
                 self._execute_step(step, op, env, sr, args)
             except _Suspended:
@@ -232,6 +249,8 @@ class Executor:
                 receipt.steps.append(sr)
                 receipt.status = "denied"
                 break
+            if sr.skipped:
+                skipped.add(step.var)
 
             receipt.tokens_used += sr.tokens_in + sr.tokens_out
             receipt.steps.append(sr)
@@ -254,6 +273,7 @@ class Executor:
             step.when, dict(zip(step.args, args))
         ):
             sr.skipped = True
+            sr.skip_reason = "when condition false"
             env[step.var] = None
         else:
             self._execute_single(step, op, env, sr, args)

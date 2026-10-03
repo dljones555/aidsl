@@ -381,3 +381,68 @@ def test_when_and_depends_on_round_trip():
     text = dumps(spec)
     assert "when a == 'go' depends_on a" in text
     assert loads(text) == spec
+
+
+def _skip_chain_spec() -> Spec:
+    """a skipped via when; b and c depend down the chain."""
+    steps = [
+        PlanStep("c", "op_c", ["b"], depends_on=["b"]),
+        PlanStep("b", "op_b", ["a"], depends_on=["a"]),
+        PlanStep("a", "op_a", [], when="1 == 2", depends_on=[]),
+    ]
+    ops = [Op(f"op_{v}", effect=Effect.PURE) for v in "abc"]
+    return Spec(name="s", ops=ops, plans=[Plan("main", steps)])
+
+
+def test_skip_cascades_to_dependents_with_reason():
+    """No data, no run: a skipped step cascades, and the receipt says why."""
+    spec = _skip_chain_spec()
+    assert check(spec) == []
+
+    ran: list[str] = []
+
+    def impl(var: str):
+        def fn(_inputs):
+            ran.append(var)
+            return "x"
+
+        return fn
+
+    receipt = Executor(
+        spec, CannedModel({}), op_impls={f"op_{v}": impl(v) for v in "abc"}
+    ).run()
+    assert ran == []  # a skipped via when; b and c cascaded
+    by_var = {s.var: s for s in receipt.steps}
+    assert by_var["a"].skipped
+    assert by_var["a"].skip_reason == "when condition false"
+    assert by_var["b"].skipped
+    assert by_var["b"].skip_reason == "dependency 'a' was skipped"
+    assert by_var["c"].skipped
+    assert by_var["c"].skip_reason == "dependency 'b' was skipped"
+
+
+def test_skip_cascade_leaves_other_branches_alone():
+    """A skip quiets its own branch only; unrelated steps still run."""
+    steps = [
+        PlanStep("d", "op_d", ["c"], depends_on=["c"]),
+        PlanStep("c", "op_c", [], when="1 == 2", depends_on=[]),
+        PlanStep("b", "op_b", ["a"], depends_on=["a"]),
+        PlanStep("a", "op_a", [], depends_on=[]),
+    ]
+    ops = [Op(f"op_{v}", effect=Effect.PURE) for v in "abcd"]
+    spec = Spec(name="s", ops=ops, plans=[Plan("main", steps)])
+    assert check(spec) == []
+
+    ran: list[str] = []
+
+    def impl(var: str):
+        def fn(_inputs):
+            ran.append(var)
+            return "x"
+
+        return fn
+
+    Executor(
+        spec, CannedModel({}), op_impls={f"op_{v}": impl(v) for v in "abcd"}
+    ).run()
+    assert ran == ["a", "b"]  # c skipped via when, d cascaded; a, b ran
