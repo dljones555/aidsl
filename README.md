@@ -82,11 +82,24 @@ and receipt cards. 221 tests.
 Next: the opportunity matcher — our own daily pipeline, re-expressed as
 defined work. Customer zero.
 
-## The authoring layer
+## The authoring pipeline
 
-The v0.1 `.ai` DSL (EXTRACT, CLASSIFY, DRAFT over typed schemas) still works —
-it is now one authoring skin over the IR, not the product. The product is the
-portable definition.
+Nobody hand-rolls IR. People describe work the way people talk, and the
+pipeline carries it down to the portable definition:
+
+**Interview → English → Skills → DSL → IR** — and eventually a generated
+designer.
+
+- The **interview** draws the work out of the people who do it.
+- The **English** draft is corrected in words before it becomes code.
+- **Skills** (agent skills) write the DSL: plain English in, DSL out.
+- The **DSL** is the human-owned surface — readable, diffable,
+  version-controlled. Definitely in; we don't erase it.
+- The **IR** is the contract everything lowers to.
+- The **designer** comes later, generated from the definition — not drawn
+  by hand.
+
+Every surface is a projection of the definition below it.
 
 ## Who's building this
 
