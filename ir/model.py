@@ -82,6 +82,12 @@ class PlanStep:
     op: str
     args: list[str] = field(default_factory=list)
     when: str = ""  # boolean expression; empty means always
+    depends_on: list[str] = field(default_factory=list)  # step `var`s that
+    # must run first. One declaration does double duty: ordering and
+    # concurrency permission both derive from this DAG. The reference
+    # executor runs steps in topological order (listed order when no deps
+    # are declared); steps with no shared dependencies are parallelizable
+    # by DAG-capable backends.
 
 
 @dataclass
@@ -213,6 +219,10 @@ def _dump_plans(spec: Spec, out: list[str]) -> None:
             line = f"  {s.var} = {s.op}({args})"
             if s.when:
                 line += f" when {s.when}"
+            if s.depends_on:
+                # Trailing clause, always last: end-anchored on parse so the
+                # free-form when-expression can never swallow it.
+                line += f" depends_on {', '.join(s.depends_on)}"
             out.append(line)
         out.append("")
 
@@ -370,7 +380,22 @@ def _parse_gate_verdicts(s: str, spec: Spec) -> None:
 
 
 def _parse_plan_step(s: str, spec: Spec) -> None:
-    """`var = op(args) when <expr>` -> PlanStep on the current plan."""
+    """`var = op(args) [when <expr>] [depends_on a, b]` -> PlanStep.
+
+    depends_on is always the trailing clause (end-anchored), so the
+    free-form when-expression can't swallow it. A when-expression may not
+    itself end with a bare `depends_on <names>` clause — the keyword is
+    reserved in trailing position.
+    """
+    if re.search(r"\s+depends_on\s*$", s):
+        raise ValueError(
+            f"IR parse error in plan step: depends_on needs step names: {s!r}"
+        )
+    dep_m = re.search(r"\s+depends_on\s+([\w][\w\s,]*?)\s*$", s)
+    depends_on: list[str] = []
+    if dep_m:
+        depends_on = [d.strip() for d in dep_m.group(1).split(",") if d.strip()]
+        s = s[: dep_m.start()]
     m = re.match(r"(\w+)\s*=\s*(\w+)\(([^)]*)\)(?:\s+when\s+(.+))?", s)
     if not m:
         raise ValueError(f"IR parse error in plan step: {s!r}")
@@ -381,6 +406,7 @@ def _parse_plan_step(s: str, spec: Spec) -> None:
             op=op,
             args=[a.strip() for a in args.split(",") if a.strip()],
             when=(when or "").strip(),
+            depends_on=depends_on,
         )
     )
 

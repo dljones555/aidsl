@@ -14,6 +14,8 @@ v0.1 semantics:
   - gates suspend the run until a verdict arrives (the human lane).
   - a step whose arg is a list fans out over elements; a `when` clause on
     a fanned step filters elements.
+  - steps run in topological order of their depends_on DAG (listed order
+    when no dependencies are declared).
   - budget audits (action suspend/deny) are evaluated after the run.
 """
 
@@ -46,6 +48,7 @@ class StepReceipt:
     gate: str = ""
     verdict: str = ""
     skipped: bool = False
+    skip_reason: str = ""  # why skipped: "when condition false" or cascade
     suspended: bool = False
     shadow_blocked: bool = False
     dropped: bool = False
@@ -84,6 +87,7 @@ class RunReceipt:
                     "gate": s.gate,
                     "verdict": s.verdict,
                     "skipped": s.skipped,
+                    "skip_reason": s.skip_reason,
                     "suspended": s.suspended,
                     "shadow_blocked": s.shadow_blocked,
                     "dropped": s.dropped,
@@ -133,6 +137,41 @@ def _flag_audits(spec: Spec, record: Any) -> list[str]:
     return fired
 
 
+def _topo_order(plan: Plan) -> list[PlanStep]:
+    """Order plan steps so each runs after its depends_on dependencies.
+
+    Stable: unconstrained steps keep their listed order, so a plan with no
+    depends_on runs exactly as listed. Unknown references and cycles are
+    rejected by check() first; this raises loudly instead of hanging or
+    silently misordering if they ever reach the executor.
+    """
+    by_var = {s.var: s for s in plan.steps}
+    for step in plan.steps:
+        for dep in step.depends_on:
+            if dep not in by_var:
+                raise ValueError(
+                    f"plan '{plan.name}' step '{step.var}' depends on "
+                    f"unknown step '{dep}'"
+                )
+    deps = {s.var: set(s.depends_on) for s in plan.steps}
+    done: set[str] = set()
+    ordered: list[PlanStep] = []
+    while len(ordered) < len(plan.steps):
+        progressed = False
+        for step in plan.steps:  # listed order: the stability guarantee
+            if step.var not in done and deps[step.var] <= done:
+                ordered.append(step)
+                done.add(step.var)
+                progressed = True
+        if not progressed:
+            stuck = [s.var for s in plan.steps if s.var not in done]
+            raise ValueError(
+                f"plan '{plan.name}' has a dependency cycle involving: "
+                + ", ".join(stuck)
+            )
+    return ordered
+
+
 class Executor:
     def __init__(
         self,
@@ -168,7 +207,13 @@ class Executor:
         )
         env: dict[str, Any] = {}
 
-        for step in plan.steps:
+        # The reference executor stays sequential, but it follows the
+        # depends_on DAG rather than listed order. Steps with no shared
+        # dependencies are parallelizable by DAG-capable backends —
+        # ordering and concurrency permission derive from this same
+        # declaration; each backend owns its own scheduling.
+        skipped: set[str] = set()  # vars whose steps produced no output
+        for step in _topo_order(plan):
             op = self.ops.get(step.op)
             if op is None:
                 raise ValueError(f"undefined op '{step.op}'")
@@ -180,6 +225,20 @@ class Executor:
                 inputs_digest=_digest(args),
                 outputs_digest="",
             )
+            # Cascade skip: a step whose dependency was skipped is skipped
+            # too — no data, no run. Topo order guarantees the dependency
+            # was already processed, so `skipped` is complete here.
+            blocked_by = next(
+                (d for d in step.depends_on if d in skipped), None
+            )
+            if blocked_by is not None:
+                sr.skipped = True
+                sr.skip_reason = f"dependency '{blocked_by}' was skipped"
+                skipped.add(step.var)
+                env[step.var] = None
+                sr.outputs_digest = _digest(None)
+                receipt.steps.append(sr)
+                continue
             try:
                 self._execute_step(step, op, env, sr, args)
             except _Suspended:
@@ -190,6 +249,8 @@ class Executor:
                 receipt.steps.append(sr)
                 receipt.status = "denied"
                 break
+            if sr.skipped:
+                skipped.add(step.var)
 
             receipt.tokens_used += sr.tokens_in + sr.tokens_out
             receipt.steps.append(sr)
@@ -212,6 +273,7 @@ class Executor:
             step.when, dict(zip(step.args, args))
         ):
             sr.skipped = True
+            sr.skip_reason = "when condition false"
             env[step.var] = None
         else:
             self._execute_single(step, op, env, sr, args)
