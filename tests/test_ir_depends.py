@@ -352,3 +352,32 @@ def test_realistic_pipeline_suspends_at_human_gate():
     gate_step = receipt.steps[-1]
     assert gate_step.suspended and gate_step.gate == "approval"
     # summarize and notify never ran
+
+
+def test_depends_on_is_plan_scoped():
+    """A step cannot depend on a var from another plan — IR-10."""
+    ops = [Op("op_a", effect=Effect.PURE), Op("op_b", effect=Effect.PURE)]
+    spec = Spec(
+        name="s",
+        ops=ops,
+        plans=[
+            Plan("one", [PlanStep("a", "op_a", [], depends_on=[])]),
+            Plan("two", [PlanStep("b", "op_b", ["a"], depends_on=["a"])]),
+        ],
+    )
+    vs = check(spec)
+    assert [v.code for v in vs] == ["IR-10"]
+    assert "unknown step 'a'" in vs[0].message
+
+
+def test_when_and_depends_on_round_trip():
+    """Canonical form keeps `when` before the trailing depends_on clause."""
+    steps = [
+        PlanStep("b", "op_b", ["a"], when="a == 'go'", depends_on=["a"]),
+        PlanStep("a", "op_a", [], depends_on=[]),
+    ]
+    ops = [Op("op_a", effect=Effect.PURE), Op("op_b", effect=Effect.PURE)]
+    spec = Spec(name="s", ops=ops, plans=[Plan("main", steps)])
+    text = dumps(spec)
+    assert "when a == 'go' depends_on a" in text
+    assert loads(text) == spec
