@@ -20,6 +20,7 @@ from .model import (
     dumps,
     loads,
 )
+from .receipt_card import render_card
 from .stub import (
     AutoVerdict,
     CannedModel,
@@ -60,4 +61,5 @@ __all__ = [
     "loads",
     "lower_program",
     "parse_ok",
+    "render_card",
 ]
