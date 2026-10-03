@@ -1,374 +1,81 @@
-# AI DSL Roadmap — "Do You Speak Bocce?"
+# Work Surface Roadmap
 
-One person. No funding. Big vision. This roadmap is constrained to reality.
+One person, one AI teammate. No funding. The goal is simple:
 
-The dream: AI DSL becomes the lingua franca for agents, robots, smart homes,
-compliance, military, whatever domain — the structured layer between English
-and execution. The "SQL for AI" that non-engineers can read and machines can
-verify. Python and English need a frontman. This is it.
+**One customer, or kibosh.** A real operator saying "build this for me" on a
+small-stakes slice — or we stop.
 
-The reality: You're one guy, unknown, eating top ramen in your trunk.
-Academic probation from the school of shipping. Four AI tools have said
-"great idea, ship it." Zero humans have paid for it.
+## Shipped
 
-**Rule: No more ideation sessions until something ships and someone reacts.**
+- **PR #8** — IR v0.1 first cut: the five primitives (type, op, plan, gate,
+  audit rule), effect types (pure / recorded / external / suspend), human
+  gates, receipts, canonical text form. 193 tests.
+- **PR #9** — `depends_on`: per-step data dependencies, the DAG, cycle
+  detection (IR-10 / IR-11), topo-order executor, cascade-skip semantics.
+- **PR #10** — receipt card: the user-presentable proof of a run —
+  what ran, what the model said, what the human decided, what it cost.
 
----
+Main is green: 221 tests. Nothing merges without David.
 
-## What Exists (v0.1 — Done)
+## Now: the vertical slice (PBI #38)
 
-- 3 verbs: EXTRACT, CLASSIFY, DRAFT
-- 5 types: TEXT, MONEY, NUMBER, YES/NO, ONE OF
-- Nested types, LIST OF
-- Sources: CSV, JSON, folders, HTTPS API
-- FLAG WHEN (deterministic CPU rules)
-- SET block (model, temperature, seed, headers)
-- PROMPT and EXAMPLES modifiers
-- Python fluent API (SchemaBuilder, Pipeline)
-- 165+ tests passing
-- README, CONCEPTS, security model WIP
-- Business Source License 1.1
+The opportunity matcher as customer zero — our own daily pipeline,
+re-expressed as defined work:
 
-This works. It's complete for what it does. Stop touching it until customers
-ask for changes.
+1. Interview captures the matching criteria.
+2. Criteria lower to DSL, then IR.
+3. The matcher runs with declared effects.
+4. David approves leads at a human gate.
+5. Receipts carry source provenance, decisions, and costs.
 
----
+It needs nobody's permission. It is the demo and the dogfood.
 
-## The Vision Stack (What Was Ideated)
+## Next (proposed order)
 
-These came from sessions with Gemini, Grok, Copilot, and Claude. All good
-ideas. None validated by a paying human.
+1. **#6 — Settle `approve`.** Own verb or assert-in-the-human-lane? A
+   decision first; everything about gates hangs off it.
+2. **#5 — Assert language.** Input-side contracts: the dual of gates.
+   Gates check outputs and approvals; asserts check inputs and provenance.
+3. **#14 — Partial failure and retry.** Per-op failure policy
+   (retry / fallback / escalation / stop). Required before any real
+   customer run.
+4. **Cost cluster (#8 + #13 + #15, merged).** One PBI: compile-time cost
+   estimation, the per-run token/labor ledger, and declared budgets the
+   executor refuses to exceed.
+5. **#20 + #21 — Micro-interview and plain-language review.** A few
+   questions produce a draft definition; the draft renders back in readable
+   form for correction before it runs. The FDE wedge.
+6. **#1 — Publish the Layer 2 IR spec.** Written so a stranger can
+   implement a conforming checker without reading our code.
 
-| Layer | Status | Ship When |
-|---|---|---|
-| Pydantic validation | Gap — hand-rolled today | First (internal quality) |
-| SUMMARIZE verb | Missing — obvious gap | First (small, useful) |
-| STAGE (named pipeline steps) | Ideated | When a customer needs multi-step |
-| SKILL (composable agent units) | Ideated | When a customer needs agents |
-| HITL (human-in-the-loop) | Ideated | When a customer needs approval flows |
-| Generated Python API | Ideated (Grok rec) | When maintaining two surfaces hurts |
-| Verify Graph (trust metadata) | Ideated — keep simple | Could ship standalone |
-| Behavior Trees | Ideated (Grok/robotics) | When a robotics customer appears |
-| LTL safety monitors | Ideated (Grok/robotics) | When safety-critical domain appears |
-| Domain verb packs | Ideated | When base is stable + adopted |
-| Device auto-discovery | Ideated | When IoT customer appears |
-| Skill registry / fleet hub | Ideated | When multiple deployments exist |
+## Merged (duplicates folded)
 
-**The rule: nothing moves from "ideated" to "building" without customer pull
-or community signal. The only exceptions are Pydantic and SUMMARIZE, which
-are internal quality and obvious gaps.**
+- #8 + #13 + #15 → one cost-model PBI (estimation + ledger + guardrails).
+- #20 + #26 → one interview/wizard PBI. The high-touch (#25) vs
+  self-serve (#26) tension stays open until a customer picks.
+- #4 + #5 + #6 → one policy/approvals cluster; #6 decides first.
 
----
+## Deferred
 
-## Phase 0: Health + Foundation (Now — 2 weeks)
+- #47 — Python-authored plans lowering to IR. Future wedge, not now.
+- #48 — Agent SDK primitive survey. Spike, not now.
+- Parked repo chores (TASKS.md): untouched until customers ask.
 
-You can't ship if you can't think. Brain health is not optional.
+## Tensions (David's call)
 
-- [ ] Food: Replace ramen with beans/rice/eggs/greens. $30/week. Non-negotiable.
-      Your doctor is right. This is a blocker, not a lifestyle choice.
-- [ ] Pydantic migration: Replace hand-rolled validator with Pydantic models.
-      Internal quality. Makes the Python API credible. ~2-3 sessions.
-- [ ] SUMMARIZE verb: Fourth verb. text in -> condensed text out. Temp 0.
-      Follows existing EXTRACT pattern. ~1 session. Tests included.
-- [ ] Clean up verify graph idea: Strip to minimal JSON schema.
-      Not a product yet — just a clean spec in a markdown file. Kill the
-      overengineering. It's a JSON object with methods, times, and scores.
+- **Layer 1 vs Layer 2.** The repo DSL stays stable; new semantics land in
+  the IR, not in new verbs.
+- **#6.** `approve` as its own verb vs assert-in-the-human-lane.
+- **#25 vs #26.** High-touch "three conversations, one map" vs the
+  self-serve wizard. Keep both until a customer picks.
 
----
+## Not doing
 
-## Phase 1: Show the Work (Weeks 3-6)
-
-Nobody knows this exists. Fix that. AI tools can help here — this is where
-agents earn their keep for a solo founder.
-
-### Content (you + AI assist)
-
-- [ ] Write ONE blog post: "The GPU/CPU Boundary — Why Not Everything Should
-      Go to an LLM." This is your best original insight. Post on:
-      - Dev.to or Hashnode (SEO, dev audience)
-      - r/Python, r/MachineLearning, r/LocalLLaMA (discussion)
-      - LinkedIn (professional network)
-      - X/Twitter (tag Karpathy thread, Wolf thread — you have the refs)
-      Use Claude/Grok to draft, you edit for voice and authenticity.
-
-- [ ] Record ONE demo video (2-3 min): .ai file -> run -> structured output.
-      Screen recording, no production. Loom or OBS. Show the execution plan.
-      Post on X, LinkedIn, YouTube.
-
-- [ ] Write a Show HN post. Title: "Show HN: AI DSL — structured language
-      for AI workflows (SQL for agents)". Link to GitHub. Short, honest
-      description. Let HN decide if it's interesting.
-
-### Community signals to watch
-
-- GitHub stars (are people finding it?)
-- Comments/replies on posts (what resonates?)
-- DMs or emails (anyone reaching out?)
-- Forks or issues (anyone trying to use it?)
-
-If none of these move after Phase 1, the market is telling you something.
-Listen to it.
-
-### AI-assisted outreach (ethical, not spam)
-
-- Use AI to find relevant conversations on X/Reddit about:
-  "structured output" + "LLM", "agent frameworks" + "too complex",
-  "prompt engineering" + "consistency problems"
-- Reply genuinely with your perspective + link when relevant
-- Don't spam. Add value or don't post.
+- No new PBIs. Consolidate first; net zero.
+- No paid APIs, cloud, or spend without approval.
+- One story per branch. Checkpoint = demo + diff + three decision gates max.
 
 ---
 
-## Phase 2: First Conversations (Weeks 7-10)
-
-**Goal: 5 real conversations with people who have budget and a manual
-workflow they hate.** This is from your own lessons_learned.md. Do it.
-
-### Where to find them
-
-- LinkedIn: Search for "AI automation", "document processing", "compliance
-  automation" in titles. Connect. Ask what they struggle with.
-- IndieHackers: Post in "What are you working on?" with honest status.
-- Local meetups: AI/ML meetups in your area. Show the demo. Ask questions.
-- Upwork/freelance: Search for AI workflow projects. Bid using the DSL as
-  your internal tooling. Get paid to validate.
-
-### What to learn from conversations
-
-- What workflow do they do manually today?
-- How much time/money does it cost them?
-- Would they pay $200-400/hr for someone to automate it?
-- Does the .ai file concept make sense to them?
-
-### Vertical candidates (pick ONE to pursue)
-
-| Vertical | Why | Risk |
-|---|---|---|
-| Support desk triage | Closest to current DSL | Crowded (Zendesk, Intercom) |
-| Insurance/claims processing | Regulated, needs audit trails | Long sales cycles |
-| Compliance monitoring (SEC, etc.) | High value, audit = differentiator | Enterprise only |
-| Document extraction (invoices, receipts) | Obvious use case | Commoditized (Reducto etc.) |
-| Consulting (AI workflow structuring) | Sell your skill, not the tool | Not scalable |
-
-**Recommendation: Start with consulting. Get paid to learn what customers
-actually need. Use the DSL as your internal accelerator. Let client needs
-drive what gets built next.** This is what your lessons_learned.md already
-concluded. Trust your own analysis.
-
----
-
-## Phase 3: Build What's Pulled (Weeks 11+)
-
-Only enter this phase if Phase 2 produced signal. Build what customers asked
-for, not what AI tools suggested.
-
-Likely candidates based on the vertical:
-- STAGE + simple HITL (if support/compliance vertical)
-- Pydantic output + verify graph metadata (if audit/regulated vertical)
-- PDF/image ingestion (if document extraction vertical — PBI-PDF-IMAGE)
-- Generated Python API (if developer adoption is the signal)
-
----
-
-## What NOT to Do
-
-- No more ideation sessions with AI tools until Phase 1 ships
-- No robotics/BT/LTL work until a robotics customer exists
-- No domain packs until the base language is adopted
-- No skill registry until multiple users need to share skills
-- No fleet hub until multiple deployments exist
-- No Rust rewrite
-- No formal verification (Lean/Coq)
-- No device auto-discovery
-- No app store
-
-These are all good ideas filed in `future_state/`. They stay there.
-
----
-
-## Ideas Parking Lot (Captured, Not Scheduled)
-
-Raw ideas captured before they're lost. Not prioritized, not designed.
-Pull into the vision stack only when customer signal justifies it.
-
-### Harness & Loop — Orchestration Layer
-
-A pluggable module that sits above .ai files and handles execution:
-- Simple to advanced loops (retry, batch, streaming)
-- Scheduling (cron, event-driven, file-watch triggers)
-- DAG/graph execution (stages with dependencies)
-- Queuing (work queues, priority, backpressure)
-- Multi-agent orchestration (run N agents in parallel)
-- Cost estimation: CPU, GPU, energy, infra, human labor and skill costs,
-  scale factors (1 home vs 500, 10 tickets vs 10,000)
-- Pluggable into external orchestration: can be bare cron + queues,
-  or opinionated infra gen (Aspire-like or Python-native approach for
-  setting up required services), or plug into existing tools
-- Error handling, structured logging, telemetry
-- Healthcheck endpoint (is the agent alive, last run status, error rate)
-- **Context management**: The whole system is essentially managed context.
-  Simple commands to set, clear, scope, and persist context across runs.
-  Auto context management (what the agent remembers, forgets, carries
-  forward). Healthcheck includes context health (stale? too large?
-  missing critical state?). A few simple levers and settings — not a
-  framework, just knobs: context window, retention policy, scope rules.
-
-### Agent API Layer — Runtime Control Surface
-
-Before UIs or dashboards, the DSL needs a simple API that any frontend
-can call. This is the control surface — not the UI itself:
-
-- **Core ops**: `run(pipeline)`, `start(agent)`, `stop(agent)`,
-  `status(agent)`, `get_output(run_id)`, `list_runs()`
-- **HITL ops**: `get_pending_reviews()`, `submit_decision(review_id, decision)`
-- **Introspection**: `get_execution_plan(pipeline)`, `get_cost_estimate(pipeline)`,
-  `get_verify_graph(run_id)`
-- Could be a simple REST/JSON API, or a Python class, or both
-- This is NOT a k8s-level orchestrator — it's a thin control layer over
-  the existing compiler + runtime. Start with a Python class. Add HTTP
-  when a UI needs it.
-- Open question: does this look more like a library API (import and call),
-  a local server (FastAPI on localhost), or a managed service? Depends on
-  deployment context. Start with library, graduate to server.
-
-### Agent UIs — Multiple Surfaces, One API
-
-Not just chatbots. The API layer above enables multiple UI patterns:
-
-- **Chat UI**: Chainlit or similar — conversational agent interaction,
-  good for support/helpdesk use cases. Wraps `run_one()` per message.
-- **Dashboard UI**: Streamlit or similar — monitoring, metrics, run
-  history, cost trends. Reads audit logs the DSL already produces.
-- **HITL Inbox**: Review queue for flagged items awaiting human decision.
-  Could be standalone or embedded in dashboard.
-- **Form/wizard UI**: For non-chat use cases — upload a file, pick a
-  pipeline, see structured results. Data processing, not conversation.
-- **Embedded UI**: Components that drop into existing apps (React,
-  Vue, etc.) via the API layer.
-- **CLI** (already exists): `aidsl run pipeline.ai` — the original UI.
-- **No UI**: Library mode — import Pipeline, call `.run()` from your
-  own code. FastAPI, Celery, notebooks, whatever.
-
-The DSL doesn't own the UI. It owns the API. UIs are adapters.
-
-### Protocol & Ecosystem Integration
-
-- **A2A (Agent-to-Agent)**: Google's agent interop protocol
-- **MCP (Model Context Protocol)**: Anthropic's tool/context standard
-- **Agent Skills (agentskills.io)**: Skill packaging and sharing
-- **OpenAI Assistants API / Responses API**: Compatibility layer so
-  DSL pipelines can be called as assistants or respond in the expected
-  format. Not lock-in — just speaking their protocol.
-- **AG-UI (Agent-User Interaction Protocol)**: Emerging standard for
-  how agent backends communicate with frontend UIs. If this matures,
-  the DSL's API layer should speak it natively.
-- **Training data standard**: Like robots.txt but for AI training data —
-  a declaration of what data is available, how it should be used, what's
-  off-limits.
-- These are interop layers — the DSL compiles *to* these formats, not
-  *from* them. The compiler gains new output targets over time.
-- Gap analysis needed: what does a full production system require beyond
-  parse/compile/run? (Auth, secrets, networking, observability, deployment)
-
-### Verb Ecosystem — Open Source Extension Model
-
-Verbs are the instruction set. Community developers should be able to
-extend it — like Salesforce Flows, Terraform providers, or pytest plugins:
-
-- **Core verbs** (built-in, governed). Design gate per CONCEPTS.md rules:
-  - Shipped: EXTRACT, CLASSIFY, DRAFT
-  - Near-term: SUMMARIZE (text in, condensed text out, precision mode)
-  - Future core: STAGE (named pipeline step with data flow),
-    ROUTE (direct output to a destination by rule),
-    REVIEW (HITL gate — pause for human decision),
-    CONVERSE (multi-turn chat loop with context)
-- **Domain packs** (installed): `IMPORT DOMAIN smart_home` adds MONITOR,
-  SET_DEVICE. Each pack is a Python package with typed verb definitions.
-- **Community verbs** (npm-like): `aidsl install verb-route` adds ROUTE.
-  Each verb is a Python module with a defined interface: input type,
-  output type, inference mode (GPU/CPU/HITL), compilation target.
-- **Verb = the DSL equivalent of a Flow, MCP tool, or agent action.**
-  One abstraction that maps to multiple protocol targets.
-- Don't build the registry until 3+ developers ask for it. Until then
-  verbs are Python modules in a `verbs/` folder.
-
-### Evals — Simple, Composable, Ecosystem-Aware
-
-The DSL needs a way to measure "is this pipeline good?" Tied to the verify
-graph and confidence scores.
-
-- **Per-pipeline evals**: Run N inputs, compare outputs to ground truth,
-  score accuracy/consistency. Like pytest but for AI quality.
-- **Eval levels**:
-  - Private: your own test cases, your own data
-  - Shared: team/org benchmarks (e.g., "our claims extraction must be >95%")
-  - Industry: public benchmarks for common tasks (NER, classification, etc.)
-  - Marketplace/repo: community-contributed eval sets per domain
-- **Eval output**: Ties into verify graph — each run produces scores,
-  method breakdown, and confidence. Diffable over time.
-- **Keep it simple**: An eval is just a .ai file + a ground truth JSON +
-  a scoring function. Don't over-engineer this.
-
-*All items above are PBI-level. No work starts without customer pull.*
-
----
-
-## What NOT to Do
-
-You asked if AI can help you market, build community, and sell. Yes, but
-specifically:
-
-| Task | How AI Helps | How It Doesn't |
-|---|---|---|
-| Blog post drafting | Draft from bullet points, you edit | Can't be your authentic voice |
-| Social media posts | Generate variations, hashtags | Can't build real relationships |
-| Demo script | Outline what to show | Can't record the video |
-| Outreach research | Find relevant conversations | Can't replace genuine engagement |
-| Code generation | Ship features faster | Can't decide what to build |
-| Issue triage | Classify feedback | Can't talk to customers for you |
-| Docs/README | Generate from code | Can't validate product-market fit |
-
-**The one thing AI cannot do: tell you whether anyone will pay for this.**
-Only humans can do that. Go talk to them.
-
----
-
-## The Uncle Owen Test
-
-> "Do you speak Bocce?"
-
-The vision: every agent, robot, smart home, compliance system, and
-autonomous vehicle speaks Bocce — a common structured language that bridges
-English intent and machine execution. Domain packs extend the vocabulary.
-The compiler produces verified, auditable execution plans. Non-engineers
-write it. Engineers trust it.
-
-That's a real vision. It's also a 10-year vision for a funded team.
-
-For one guy right now, the test is simpler:
-
-**Can you find ONE person who will pay you to solve their problem using
-this tool?**
-
-Everything else follows from that. The DSL is the engine, not the car.
-Find someone who needs a ride.
-
----
-
-## Files in This Repo
-
-| File | Purpose |
-|---|---|
-| ROADMAP.md | This file. The plan. |
-| CLAUDE.md | Dev conventions and architecture |
-| CONCEPTS.md | Language vocabulary and design principles |
-| AGENTS.md | Guidelines for AI-assisted development |
-| TASKS.md | Sprint tasks and product backlog |
-| lessons_learned.md | Market research and strategic notes |
-| security_wip.md | Security model (5-layer defense) |
-| future_state/ | Vision files from ideation sessions (parked) |
-
----
-
-*Last updated: 2026-03-07*
-*Status: Phase 0. Ship something. Talk to humans. Eat real food.*
+*Raw backlog: 49 PBIs harvested 2026-09-30 (working copy, not in this repo).
+Triaged 2026-10-03. David prioritizes; this file proposes.*
