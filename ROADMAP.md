@@ -30,6 +30,27 @@ re-expressed as defined work:
 
 It needs nobody's permission. It is the demo and the dogfood.
 
+## The bigger vision: the authoring pipeline
+
+Nobody hand-rolls IR. People describe work the way people talk, and the
+pipeline carries it down to the portable definition:
+
+**Interview → English → Skills → DSL → IR** — and eventually a generated
+designer.
+
+- **Interview** — the FDE-in-a-box: plain questions that draw the work out
+  of the people who do it.
+- **English** — the draft definition in readable prose, corrected in words
+  before it ever becomes code.
+- **Skills** — agent skills that write the DSL: plain English in, DSL out.
+- **DSL** — the human-owned surface. Readable, diffable, version-controlled.
+  Definitely in; we don't erase it.
+- **IR** — the portable contract: type, op, plan, gate, audit rule.
+- **Designer (generated, later)** — the visual surface, generated from the
+  definition, not drawn by hand.
+
+Every surface is a projection of the definition below it.
+
 ## Next (proposed order)
 
 1. **#6 — Settle `approve`.** Own verb or assert-in-the-human-lane? A
