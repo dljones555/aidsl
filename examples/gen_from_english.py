@@ -1,36 +1,71 @@
-"""Regenerate the opportunity matcher IR from its English spec.
+"""Regenerate the opportunity matcher DSL from its English spec.
 
-PBI #38, story 3 (spike). The English file
-(examples/ir/opportunity_matcher.english.md) is the source of truth;
-this script is the deterministic stand-in for the inference step that,
-in production, reads the prose and drafts the definition.
+PBI #38, story 4. Fixes story 3's shortcut: the generator now emits a real
+DSL TEXT artifact (examples/ir/opportunity_matcher.dsl), and everything
+downstream consumes it through the real parser (ir.loads). The chain is:
 
-HONESTY NOTE — what this spike proves and what it does not:
+    English -> DSL text -> parse -> check -> Spec
+
+No Python objects cross the seam. Delete the .dsl file, re-run, and the
+pipeline comes back byte-identical.
+
+SEAM CHOICE (documented; David's call to change): the DSL surface used
+here is the canonical IR text form, parsed by ir.loads. The v0.1 .ai DSL
+(lowered by ir/lower.py) cannot express this pipeline, so emitting .ai
+would silently drop the approval gate. The canonical text form is a real
+DSL: specified, human-readable and writable, with a real parser and a
+round-trip printer.
+
+DSL GAP vs the v0.1 .ai DSL — what lower_program cannot carry:
+- gates: .ai has no REVIEW/HITL verb, so `gate approval` on
+  send_outreach would be lost. This alone disqualifies .ai here.
+- step-level when: `d = draft_outreach(s) when s.score > 0.7 ...` —
+  FLAG WHEN lowers to audit rules, not step conditions.
+- budgets: `budget tokens 10000 human_minutes 15` — SET is binding
+  config and deliberately dropped; no budget syntax exists.
+- deny lists: `deny: action.execute` — no .ai concept.
+- suspend-action audits: `audit budget_tokens: ... -> suspend` —
+  FLAG WHEN only produces action "flag".
+- kv:// knowledge: FROM produces fs:// entries only.
+.ai CAN carry: types (DEFINE), sources (FROM), model ops with prompts
+(EXTRACT/CLASSIFY/DRAFT), flag rules, the output sink.
+
+PROPOSAL (needs David's decision):
+- Option A: extend the .ai grammar (GATE verb or gate clause, step-level
+  WHEN, BUDGET block, DENY). Real language-design work; makes .ai the
+  full-fidelity authoring language.
+- Option B (recommended): declare the canonical text form the DSL for IR
+  authoring — already specified, writable, parsed and printed round-trip —
+  and keep .ai as the narrower skin for simple extract/classify/draft
+  pipelines. No grammar work, no information loss.
+
+HONESTY NOTE — what this proves and what it does not:
 
 Proves:
-- Round-trip mechanics: a single English source file regenerates the
-  pipeline definition deterministically. Delete the generated artifact,
-  re-run, byte-identical IR.
+- The full chain is real text: a single English source regenerates a
+  committed DSL file, which the parser — not Python objects — turns
+  into the checked IR. Delete the .dsl, re-run, byte-identical.
 - The English spec is load-bearing: editing a declared parameter (e.g.
-  the score threshold) changes the generated IR; rewording the prose
+  the score threshold) changes the DSL and the IR; rewording the prose
   does not. The contract is enforced, not decorative.
-- Everything below the English is mechanical: parse, check, emit. No
-  judgment lives in the generator.
+- Everything below the English is mechanical: render text, parse,
+  check. No judgment lives in the generator.
 
 Does NOT prove:
-- That an LLM drafts a correct definition from English prose. That is
-  the real inference step and it needs live-model work with spend
-  approval (queued as a follow-up). Here a deterministic reader parses
-  the machine-readable ````spec-params```` block that the English file
-  carries alongside its prose.
+- That an LLM drafts a correct DSL from English prose. That is the real
+  inference step and it needs live-model work with spend approval
+  (queued as a follow-up). Here a deterministic reader parses the
+  machine-readable ```spec-params``` block that the English file carries
+  alongside its prose; the round-trip mechanics are identical.
 - That classifier policy (cities, excluded/favored categories) is fully
   expressed in the IR. Those criteria are validated as present — the
-  generator fails loudly without them — but today they ride with the
+  English spec is invalid without them — but today they ride with the
   classifier prompt/policy the ``classify_posting`` op names, not as IR
   structure. Threading policy into the IR is future work.
 
 Usage:
-    python3 examples/gen_from_english.py [--out PATH]
+    python3 examples/gen_from_english.py [--out PATH] [--english PATH]
+    # regenerates examples/ir/opportunity_matcher.dsl in place by default
 """
 
 from __future__ import annotations
@@ -43,22 +78,10 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT))
 
-from ir import (
-    AuditRule,
-    Effect,
-    Field,
-    Gate,
-    Knowledge,
-    Op,
-    Plan,
-    PlanStep,
-    Spec,
-    TypeDef,
-    check,
-    dumps,
-)
+from ir import Spec, check, loads
 
 ENGLISH_PATH = ROOT / "examples" / "ir" / "opportunity_matcher.english.md"
+DSL_PATH = ROOT / "examples" / "ir" / "opportunity_matcher.dsl"
 
 # Every key the contract requires. The IR-consuming subset is marked
 # below; the classifier-policy subset (cities, categories, daily-pay
@@ -82,10 +105,6 @@ REQUIRED_KEYS = [
     "human_minutes_budget",
 ]
 
-# Declared capabilities of this pipeline (structural, not per-run policy).
-EFFECTS = ["model.complete", "human.review"]
-DENY = ["action.execute"]
-
 
 def read_params(english_text: str) -> dict[str, str]:
     """Extract the ````spec-params```` block; fail loudly if it is absent."""
@@ -107,147 +126,101 @@ def read_params(english_text: str) -> dict[str, str]:
     return params
 
 
-def build_spec(p: dict[str, str]) -> Spec:
-    """Build the pipeline Spec from validated English parameters."""
+def render_dsl(p: dict[str, str]) -> str:
+    """Render the DSL text (canonical form) from validated parameters.
+
+    This is the inference stand-in's output: TEXT, exactly as a production
+    LLM would emit. Nothing downstream may use anything but this text —
+    the parser (ir.loads) is the only way in.
+    """
     threshold = p["score_threshold"]
-    tokens = int(p["token_budget"])
-    human_minutes = int(p["human_minutes_budget"])
+    tokens = p["token_budget"]
+    human_minutes = p["human_minutes_budget"]
     gate = p["gate_name"]
-    return Spec(
-        name="opportunity_pipeline",
-        version="v1",
-        parent="none",
-        author=p["author"],
-        goal=p["goal"],
-        budget_tokens=tokens,
-        budget_human_minutes=human_minutes,
-        knowledge=[
-            Knowledge(name="boards", uri=p["postings_source"]),
-            Knowledge(name="exclusion_rules", uri=p["exclusion_rules"]),
-        ],
-        effects=list(EFFECTS),
-        deny=list(DENY),
-        types=[
-            TypeDef(
-                name="posting",
-                fields=[
-                    Field(name="title", type="text"),
-                    Field(name="pay", type="text"),
-                    Field(name="employer", type="text"),
-                    Field(name="url", type="text"),
-                ],
-            ),
-            TypeDef(
-                name="scored",
-                fields=[
-                    Field(name="title", type="text"),
-                    Field(name="pay", type="text"),
-                    Field(name="employer", type="text"),
-                    Field(name="url", type="text"),
-                    Field(name="score", type="float"),
-                    Field(name="excluded", type="bool"),
-                ],
-            ),
-            TypeDef(
-                name="draft",
-                fields=[
-                    Field(name="to", type="text"),
-                    Field(name="subject", type="text"),
-                    Field(name="body", type="text"),
-                ],
-            ),
-        ],
-        ops=[
-            Op(
-                name="fetch_boards",
-                params=[],
-                returns="posting[]",
-                effect=Effect.RECORDED,
-                capability="fs.read",
-            ),
-            Op(
-                name="classify_posting",
-                params=["posting"],
-                returns="scored",
-                effect=Effect.EXTERNAL,
-                capability="model.complete",
-                using=p["classify_prompt"],
-                using_kind="prompt",
-            ),
-            Op(
-                name="draft_outreach",
-                params=["scored"],
-                returns="draft",
-                effect=Effect.EXTERNAL,
-                capability="model.complete",
-                using=p["outreach_prompt"],
-                using_kind="prompt",
-            ),
-            Op(
-                name="send_outreach",
-                params=["draft"],
-                returns="receipt",
-                effect=Effect.EXTERNAL,
-                capability="action.execute",
-                gate=gate,
-            ),
-        ],
-        gates=[
-            Gate(name=gate, verdicts=[v.strip() for v in p["gate_verdicts"].split(",")])
-        ],
-        audits=[
-            AuditRule(
-                name="budget_tokens",
-                expr=f"tokens_used <= {tokens}",
-                action="suspend",
-            )
-        ],
-        plans=[
-            Plan(
-                name="daily_scan",
-                steps=[
-                    PlanStep(var="p", op="fetch_boards", args=[]),
-                    PlanStep(var="s", op="classify_posting", args=["p"]),
-                    PlanStep(
-                        var="d",
-                        op="draft_outreach",
-                        args=["s"],
-                        when=f"s.score > {threshold} and not s.excluded",
-                    ),
-                    PlanStep(var="r", op="send_outreach", args=["d"]),
-                ],
-            )
-        ],
-    )
+    verdicts = ", ".join(v.strip() for v in p["gate_verdicts"].split(","))
+    lines = [
+        "spec opportunity_pipeline@v1",
+        "  parent none",
+        f'  author "{p["author"]}"',
+        f'  goal "{p["goal"]}"',
+        f"  budget tokens {tokens} human_minutes {human_minutes}",
+        "",
+        "knowledge:",
+        f'  boards @ "{p["postings_source"]}"',
+        f'  exclusion_rules @ "{p["exclusion_rules"]}"',
+        "",
+        "effects: model.complete, human.review",
+        "deny: action.execute",
+        "",
+        "type posting = { title: text, pay: text, employer: text, url: text }",
+        (
+            "type scored = { title: text, pay: text, employer: text, url: text,"
+            " score: float, excluded: bool }"
+        ),
+        "type draft = { to: text, subject: text, body: text }",
+        "",
+        "op fetch_boards() -> posting[] effect recorded cap fs.read",
+        (
+            "op classify_posting(posting) -> scored effect external"
+            f' cap model.complete using prompt "{p["classify_prompt"]}"'
+        ),
+        (
+            "op draft_outreach(scored) -> draft effect external"
+            f' cap model.complete using prompt "{p["outreach_prompt"]}"'
+        ),
+        (
+            "op send_outreach(draft) -> receipt effect external"
+            f" cap action.execute gate {gate}"
+        ),
+        "",
+        f"gate {gate}:",
+        f"  human decides in [{verdicts}]",
+        "",
+        f"audit budget_tokens: tokens_used <= {tokens} -> suspend",
+        "",
+        "plan daily_scan:",
+        "  p = fetch_boards()",
+        "  s = classify_posting(p)",
+        f"  d = draft_outreach(s) when s.score > {threshold} and not s.excluded",
+        "  r = send_outreach(d)",
+        "",
+    ]
+    return "\n".join(lines)
 
 
-def generate_ir_text(english_text: str) -> str:
-    """English spec in, canonical IR text out. Fails loudly on violations."""
-    spec = build_spec(read_params(english_text))
+def generate_dsl_text(english_text: str) -> str:
+    """English spec in, DSL text out. The text is the artifact."""
+    return render_dsl(read_params(english_text))
+
+
+def load_dsl(dsl_text: str) -> Spec:
+    """The parse seam: DSL text -> Spec, checker enforced. Fails loudly."""
+    spec = loads(dsl_text)
     violations = check(spec)
     if violations:
         raise ValueError(
-            "generated spec failed the checker: "
+            "DSL text failed the checker: "
             + "; ".join(f"{v.code} {v.message}" for v in violations)
         )
-    return dumps(spec)
+    return spec
 
 
 def main() -> None:
-    """Regenerate the IR from the English spec; print or write it."""
+    """Regenerate the committed DSL file from the English spec."""
     parser = argparse.ArgumentParser(
-        description="Regenerate opportunity_pipeline.ir from its English spec."
+        description="Regenerate opportunity_matcher.dsl from its English spec."
     )
-    parser.add_argument("--out", help="write IR text here instead of stdout")
+    parser.add_argument(
+        "--out", default=str(DSL_PATH), help="where to write the DSL text"
+    )
     parser.add_argument(
         "--english", default=str(ENGLISH_PATH), help="English spec to read"
     )
     args = parser.parse_args()
-    text = generate_ir_text(Path(args.english).read_text())
-    if args.out:
-        Path(args.out).write_text(text)
-    else:
-        sys.stdout.write(text)
+    dsl_text = generate_dsl_text(Path(args.english).read_text())
+    load_dsl(dsl_text)  # the parser is the gate: invalid text never lands
+    Path(args.out).write_text(dsl_text)
+    print(f"wrote {args.out} ({len(dsl_text)} chars, checker clean)")
 
 
 if __name__ == "__main__":
