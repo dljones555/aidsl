@@ -1,0 +1,26 @@
+-- Opportunity matcher: daily scan to a ranked shortlist.
+-- No gate: a list. Nothing is drafted, nothing is sent.
+-- Generated from opportunity_matcher.english.md — do not hand-edit.
+-- Classifier policy (score_threshold 0.7, cities, categories,
+-- daily-pay rule) rides with the classifier prompt; the English
+-- spec-params are the contract. The shortlist filter
+-- (score > 0.7, not excluded) is host
+-- presentation policy on the write_output step.
+
+DEFINE posting:
+  title    TEXT
+  pay      TEXT
+  employer TEXT
+  url      TEXT
+
+DEFINE scored:
+  title    TEXT
+  pay      TEXT
+  employer TEXT
+  url      TEXT
+  score    NUMBER
+  excluded YES/NO
+
+FROM examples/ir/postings.jsonl
+EXTRACT scored PROMPT job_fit_v1
+OUTPUT shortlist.json

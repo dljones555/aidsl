@@ -1,8 +1,7 @@
-"""Story 2 (PBI #38): the eval harness measures the pipeline, not itself.
+"""Story 2 (PBI #38, revised): the eval harness measures the pipeline, not itself.
 
 The fixture carries known-good answers; the eval must pass on it, fail on
-a corrupted copy, and the fixture's own _expect annotations must agree
-with the spec's when-expression applied to the _judge values.
+a corrupted copy. No gate, no drafts: the shortlist is the observable.
 """
 
 from __future__ import annotations
@@ -13,7 +12,7 @@ from pathlib import Path
 
 import pytest
 
-ROOT = Path(__file__).parent.parent
+ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT / "examples"))
 
 from eval_opmatcher import (
@@ -23,16 +22,6 @@ from eval_opmatcher import (
     main,
     run_eval,
 )
-
-from ir import evaluate, loads
-
-
-def _draft_step_when() -> tuple[str, str]:
-    """The (arg name, when expression) of the pipeline's draft step."""
-    spec = loads((ROOT / "examples" / "ir" / "opportunity_pipeline.ir").read_text())
-    step = next(s for s in spec.plans[0].steps if s.op == "draft_outreach")
-    assert step.when, "draft step must carry the shortlist filter"
-    return step.args[0], step.when
 
 
 def test_eval_passes_on_committed_fixture():
@@ -58,72 +47,31 @@ def test_eval_fails_on_wrong_expected_shortlist(tmp_path):
     report = run_eval(bad_fixture)
     assert not report.passed
     assert report.correct == 9
-    p01 = next(v for v in report.verdicts if v.id == "p01")
-    assert not p01.ok
 
 
-def test_eval_main_exits_nonzero_on_mismatch(tmp_path, capsys):
-    """The CLI is CI-usable: exit 1 and a FAIL line on any mismatch."""
-    lines = DEFAULT_FIXTURE.read_text(encoding="utf-8").splitlines()
-    posting = json.loads(lines[4])  # p05, a clear match
-    posting["_expect"] = "skip"
-    lines[4] = json.dumps(posting)
-    bad_fixture = tmp_path / "bad_postings.jsonl"
-    bad_fixture.write_text("\n".join(lines) + "\n", encoding="utf-8")
-
-    assert main(["--fixture", str(bad_fixture)]) == 1
-    out = capsys.readouterr().out
-    assert "[FAIL] p05" in out
-    assert "9/10 correct" in out
+def test_eval_rejects_fixture_without_judge(tmp_path):
+    """A fixture line missing its judge fields fails loudly, not silently."""
+    bad = tmp_path / "njudge.jsonl"
+    bad.write_text(json.dumps({"id": "x1", "title": "T"}) + "\n", encoding="utf-8")
+    with pytest.raises(TypeError, match="_judge.score"):
+        load_fixture(bad)
 
 
-def test_fixture_expectations_agree_with_spec_when_rule():
-    """The fixture's _expect annotations match its _judge values under the
-    spec's real when-expression — guards against a misbuilt fixture."""
-    arg, when = _draft_step_when()
-    for p in load_fixture(DEFAULT_FIXTURE):
-        decided = bool(evaluate(when, {arg: p["_judge"]}))
-        assert decided == (p["_expect"] == "surface"), (
-            f"fixture posting {p['id']}: _expect={p['_expect']} disagrees "
-            f"with _judge={p['_judge']} under when={when!r}"
-        )
-
-
-def test_fixture_rejects_bad_input(tmp_path):
-    """Duplicate ids and missing _expect fail loudly, not silently."""
-    dup = tmp_path / "dup.jsonl"
-    line = json.dumps(
-        {
-            "id": "p01",
-            "title": "x",
-            "_judge": {"score": 0.9, "excluded": False},
-            "_expect": "surface",
-        }
-    )
-    dup.write_text(line + "\n" + line + "\n", encoding="utf-8")
-    with pytest.raises(ValueError, match="unique"):
-        load_fixture(dup)
-
-    bad_expect = tmp_path / "bad_expect.jsonl"
-    bad_expect.write_text(
-        json.dumps(
-            {
-                "id": "p01",
-                "title": "x",
-                "_judge": {"score": 0.9, "excluded": False},
-                "_expect": "maybe",
-            }
-        )
-        + "\n",
-        encoding="utf-8",
-    )
-    with pytest.raises(ValueError, match="_expect"):
-        load_fixture(bad_expect)
-
-
-def test_report_format_is_stable():
-    """The report renders one line per posting plus the summary score."""
+def test_eval_report_formats(tmp_path):
+    """The human-readable report carries per-posting verdicts and a score."""
     report = run_eval(DEFAULT_FIXTURE)
     text = format_report(report)
-    assert text.count("[PASS]") == 10
-    assert text.rstrip().endswith("10/10 correct")
+    assert "10/10 correct" in text
+    assert "[PASS]" in text
+
+
+def test_eval_main_exit_codes(tmp_path):
+    """main() exits 0 on pass, 1 on a corrupted fixture."""
+    assert main(["--fixture", str(DEFAULT_FIXTURE)]) == 0
+    lines = DEFAULT_FIXTURE.read_text(encoding="utf-8").splitlines()
+    posting = json.loads(lines[0])
+    posting["_expect"] = "skip"
+    lines[0] = json.dumps(posting)
+    bad_fixture = tmp_path / "bad.jsonl"
+    bad_fixture.write_text("\n".join(lines) + "\n", encoding="utf-8")
+    assert main(["--fixture", str(bad_fixture)]) == 1

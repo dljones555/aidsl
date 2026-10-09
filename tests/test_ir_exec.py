@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import json
 from pathlib import Path
 
 from ir import (
@@ -12,6 +11,7 @@ from ir import (
     Effect,
     Executor,
     Field,
+    Gate,
     ModelResult,
     Op,
     Plan,
@@ -30,11 +30,6 @@ def _example_spec() -> Spec:
     spec = loads((ROOT / "examples" / "ir" / "opportunity_pipeline.ir").read_text())
     assert check(spec) == []
     return spec
-
-
-def _fetch(_inputs):
-    path = ROOT / "examples" / "ir" / "postings.jsonl"
-    return [json.loads(l) for l in path.read_text().splitlines() if l.strip()]
 
 
 SCORED = [
@@ -88,78 +83,99 @@ SCORED = [
     },
 ]
 
-DRAFTS = [
-    {
-        "to": "jobs@ cannery.example",
-        "subject": "Line cook application",
-        "body": "Hi, ...",
-    },
-    {
-        "to": "jobs@sprouts.example",
-        "subject": "Overnight stocker application",
-        "body": "Hi, ...",
-    },
-    {"to": "jobs@mamas.example", "subject": "Busser application", "body": "Hi, ..."},
-    {
-        "to": "jobs@coast.example",
-        "subject": "Event crew application",
-        "body": "Hi, ...",
-    },
-]
-
 
 def _model():
-    return CannedModel(
-        {
-            "classify_posting": [ModelResult(d, 120, 40) for d in SCORED],
-            "draft_outreach": [ModelResult(d, 100, 60) for d in DRAFTS],
-        }
+    return CannedModel({"extract_scored": [ModelResult(d, 120, 40) for d in SCORED]})
+
+
+def test_run_is_deterministic():
+    def run_once():
+        ex = Executor(
+            _example_spec(),
+            _model(),
+            op_impls={"write_output": lambda item: {"ok": True}},
+        )
+        return ex.run("main").to_dict()
+
+    assert run_once() == run_once()
+
+
+def _gated_spec() -> Spec:
+    """Minimal inline spec with a human gate: keeps the executor's
+    gate/shadow semantics covered now that the example pipeline is a
+    gateless list."""
+    return Spec(
+        name="gated",
+        version="v1",
+        deny=["action.execute"],
+        types=[TypeDef("t", [Field("x", "text")])],
+        ops=[
+            Op(
+                name="fetch",
+                returns="t",
+                effect=Effect.RECORDED,
+                capability="fs.read",
+            ),
+            Op(
+                name="act",
+                returns="t",
+                effect=Effect.EXTERNAL,
+                capability="action.execute",
+                gate="approval",
+            ),
+        ],
+        gates=[Gate("approval", verdicts=["approve", "edit", "reject"])],
+        plans=[
+            Plan(
+                "main",
+                [
+                    PlanStep("f", "fetch", []),
+                    PlanStep("r", "act", ["f"]),
+                ],
+            )
+        ],
     )
 
 
 def test_run_suspends_at_gate():
     ex = Executor(
-        _example_spec(),
-        _model(),
-        op_impls={"fetch_boards": _fetch},
+        _gated_spec(),
+        CannedModel({}),
+        op_impls={"fetch": lambda _inputs: {"x": "y"}},
         gate_io=SuspendAlways(),
     )
-    receipt = ex.run("daily_scan")
+    receipt = ex.run("main")
     assert receipt.status == "suspended"
     gate_step = receipt.steps[-1]
-    assert gate_step.op == "send_outreach"
+    assert gate_step.op == "act"
     assert gate_step.suspended and gate_step.gate == "approval"
-    # the when-filter kept only fit, non-excluded postings
-    draft_step = next(s for s in receipt.steps if s.op == "draft_outreach")
-    assert draft_step.tokens_in == 4 * 100  # 4 drafts, not 6
-    assert receipt.tokens_used == 6 * 160 + 4 * 160
 
 
 def test_approve_hits_shadow_mode():
-    """deny: action.execute — the send exists in the spec but cannot run."""
+    """deny: action.execute — the act exists in the spec but cannot run."""
     ex = Executor(
-        _example_spec(),
-        _model(),
-        op_impls={"fetch_boards": _fetch},
+        _gated_spec(),
+        CannedModel({}),
+        op_impls={"fetch": lambda _inputs: {"x": "y"}},
         gate_io=AutoVerdict("approve"),
     )
-    receipt = ex.run("daily_scan")
+    receipt = ex.run("main")
     assert receipt.status == "completed"
-    send = receipt.steps[-1]
-    assert send.verdict == "approve"
-    assert send.shadow_blocked
+    act = receipt.steps[-1]
+    assert act.verdict == "approve"
+    assert act.shadow_blocked
     assert receipt.human_minutes_used == 5
     assert receipt.audit_failures == []
 
 
 def test_reject_drops_the_send():
     ex = Executor(
-        _example_spec(),
-        _model(),
-        op_impls={"fetch_boards": _fetch},
+        _gated_spec(),
+        CannedModel({}),
+        op_impls={"fetch": lambda _inputs: {"x": "y"}},
         gate_io=AutoVerdict("reject"),
     )
-    receipt = ex.run("daily_scan")
+    receipt = ex.run("main")
     assert receipt.status == "completed"
     assert receipt.steps[-1].verdict == "reject"
 
@@ -206,19 +222,6 @@ def test_budget_audit_bites():
     receipt = ex.run()
     assert receipt.status == "completed"
     assert receipt.audit_failures == ["budget_tokens"]
-
-
-def test_run_is_deterministic():
-    def run_once():
-        ex = Executor(
-            _example_spec(),
-            _model(),
-            op_impls={"fetch_boards": _fetch},
-            gate_io=AutoVerdict("approve"),
-        )
-        return ex.run("daily_scan").to_dict()
-
-    assert run_once() == run_once()
 
 
 def test_file_model_consumes_entries_in_order(tmp_path):
