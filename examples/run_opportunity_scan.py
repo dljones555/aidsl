@@ -1,25 +1,21 @@
-"""First receipted run of the opportunity matcher (PBI #38, story 1).
+"""First receipted run of the opportunity matcher (PBI #38, story 1, revised).
 
-Loads examples/ir/opportunity_pipeline.ir, feeds it the real
-examples/ir/postings.jsonl, runs plan daily_scan with FileModel
+Loads examples/ir/opportunity_pipeline.ir, runs plan main with FileModel
 (human-plays-model: model outputs come from a responses file, never the
-network — $0), and renders a Markdown receipt card via
-ir/receipt_card.render_card.
+network — $0). The postings come from the spec's own knowledge entry
+(fs://), resolved by the executor. No gate: it's a list — the run scores
+every posting, writes the shortlist, and renders a Markdown receipt card.
 
 Usage:
-    python3 examples/run_opportunity_scan.py [--verdict approve|reject|edit]
-                                             [--responses PATH]
-                                             [--card PATH]
+    python3 examples/run_opportunity_scan.py [--responses PATH]
+                                             [--out PATH] [--card PATH]
 
---verdict: answer the approval gate. Omit it to suspend at the gate;
-    the script prints how to resume. The reference executor is not
-    checkpointed, so a resumed run re-executes from the top against a
-    fresh copy of the responses file; runs are deterministic, so the
-    re-execution reaches the same gate with the same drafts.
+Run from the repo root so the knowledge fs:// path resolves.
 --responses: pristine responses template (default:
     examples/ir/model_responses.jsonl). FileModel marks entries consumed
     by rewriting its file, so the script always works on a temp copy —
     the template is never mutated and runs are repeatable.
+--out: where to write shortlist.json (default: examples/ir/shortlist.json).
 --card: where to write the receipt card (default: stdout).
 """
 
@@ -36,29 +32,13 @@ from typing import Any
 ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT))
 
-from ir import (
-    AutoVerdict,
-    Executor,
-    FileModel,
-    ModelResult,
-    SuspendAlways,
-    check,
-    loads,
-    render_card,
-)
+from examples.gen_from_english import read_params
+from ir import Executor, FileModel, ModelResult, check, loads, render_card
 
 SPEC_PATH = ROOT / "examples" / "ir" / "opportunity_pipeline.ir"
-POSTINGS_PATH = ROOT / "examples" / "ir" / "postings.jsonl"
+ENGLISH_PATH = ROOT / "examples" / "ir" / "opportunity_matcher.english.md"
 RESPONSES_TEMPLATE = ROOT / "examples" / "ir" / "model_responses.jsonl"
-
-
-def load_postings(path: Path) -> list[dict[str, Any]]:
-    """Read the knowledge input: one posting per JSONL line."""
-    return [
-        json.loads(line)
-        for line in path.read_text(encoding="utf-8").splitlines()
-        if line.strip()
-    ]
+DEFAULT_OUT = ROOT / "examples" / "ir" / "shortlist.json"
 
 
 class RecordingModel:
@@ -86,16 +66,16 @@ def build_parser() -> argparse.ArgumentParser:
         description="Run the opportunity matcher IR end-to-end (FileModel, $0)."
     )
     parser.add_argument(
-        "--verdict",
-        choices=["approve", "edit", "reject"],
-        default=None,
-        help="Answer the approval gate. Omit to suspend at the gate.",
-    )
-    parser.add_argument(
         "--responses",
         type=Path,
         default=RESPONSES_TEMPLATE,
         help="Pristine model-responses template (worked on via a temp copy).",
+    )
+    parser.add_argument(
+        "--out",
+        type=Path,
+        default=DEFAULT_OUT,
+        help="Where to write shortlist.json.",
     )
     parser.add_argument(
         "--card",
@@ -116,6 +96,7 @@ def main(argv: list[str] | None = None) -> int:
         for v in violations:
             print(f"check {v.code}: {v.message}", file=sys.stderr)
         return 2
+    threshold = float(read_params(ENGLISH_PATH.read_text())["score_threshold"])
 
     # FileModel consumes entries by rewriting its file: work on a temp
     # copy so the pristine template survives and runs stay repeatable.
@@ -124,30 +105,42 @@ def main(argv: list[str] | None = None) -> int:
     shutil.copyfile(args.responses, tmp_path)
     try:
         model = RecordingModel(FileModel(tmp_path))
-        gate_io = AutoVerdict(args.verdict) if args.verdict else SuspendAlways()
+        # The sink fans out per scored item (general fanout semantic); the
+        # impl accumulates, and the host writes the shortlist after the run.
+        sunk: list[dict[str, Any]] = []
+
+        def _write_output(item: Any) -> dict[str, Any]:
+            sunk.append(item)
+            return {"ok": True}
+
         executor = Executor(
             spec,
             model,
-            op_impls={"fetch_boards": lambda _inputs: load_postings(POSTINGS_PATH)},
-            gate_io=gate_io,
+            op_impls={"write_output": _write_output},
         )
-        receipt = executor.run("daily_scan")
+        receipt = executor.run("main")
     finally:
         tmp_path.unlink(missing_ok=True)
 
-    outputs = {
-        "s": [data for op, data in model.seen if op == "classify_posting"],
-        "d": [data for op, data in model.seen if op == "draft_outreach"],
-    }
-    card = render_card(receipt, outputs=outputs)
+    shortlist = [s for s in sunk if s["score"] > threshold and not s["excluded"]]
+    args.out.write_text(
+        "\n".join(json.dumps(s) for s in shortlist) + "\n", encoding="utf-8"
+    )
 
-    if receipt.status == "suspended":
-        print(
-            "Run suspended at the approval gate (no --verdict given).\n"
-            "Resume with: python3 examples/run_opportunity_scan.py "
-            "--verdict approve|edit|reject",
-            file=sys.stderr,
-        )
+    scored = [data for op, data in model.seen if op == "extract_scored"]
+    card = render_card(receipt, outputs={"scored": scored})
+
+    print("Shortlist:")
+    shortlist: list[dict[str, Any]] = []
+    if args.out.exists():
+        shortlist = [
+            json.loads(line)
+            for line in args.out.read_text(encoding="utf-8").splitlines()
+            if line.strip()
+        ]
+    for s in shortlist:
+        print(f"  - {s['title']} ({s['pay']}) score={s['score']}")
+    print()
     if args.card:
         args.card.write_text(card, encoding="utf-8")
         print(f"receipt card written to {args.card}", file=sys.stderr)

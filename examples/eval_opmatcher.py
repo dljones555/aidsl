@@ -1,21 +1,25 @@
 """Eval harness: does the IR pipeline match the known-good shortlist?
 
-PBI #38, story 2. Runs plan daily_scan from
+PBI #38, story 2 (revised 2026-10-08). Runs plan main from
 examples/ir/opportunity_pipeline.ir over the fixture
 examples/ir/eval_postings.jsonl with CannedModel (deterministic, $0, no
-network). The canned classify judgments come from each fixture line's
+network). The canned scoring judgments come from each fixture line's
 _judge field; the expected shortlist comes from _expect. The eval
-compares the postings the pipeline actually drafted against the expected
+compares the postings the pipeline shortlisted against the expected
 shortlist, per posting, and exits non-zero on any mismatch.
 
 What "match" means: exact shortlist equality — every expected-surface
-posting got a draft AND no expected-skip posting got one.
+posting is on the list AND no expected-skip posting is.
 
 Scope honesty: today the canned judgments are fixed, so this eval
-measures the pipeline machinery (fan-out, the spec's when-filter,
-ordering). When live model wiring lands, the same fixture and expected
-shortlist will measure the model's judgments instead — that is the
-point of the harness.
+measures the pipeline machinery (knowledge seeding, fan-out, the
+shortlist filter, ordering). When live model wiring lands, the same
+fixture and expected shortlist will measure the model's judgments
+instead — that is the point of the harness.
+
+The shortlist filter (score > threshold, not excluded) is host
+presentation policy; the threshold's single source of truth is the
+English spec-params.
 
 Usage:
     python3 examples/eval_opmatcher.py [--fixture PATH]
@@ -33,9 +37,11 @@ from typing import Any
 ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT))
 
-from ir import AutoVerdict, CannedModel, Executor, ModelResult, check, loads
+from examples.gen_from_english import read_params
+from ir import CannedModel, Executor, ModelResult, check, loads
 
 SPEC_PATH = ROOT / "examples" / "ir" / "opportunity_pipeline.ir"
+ENGLISH_PATH = ROOT / "examples" / "ir" / "opportunity_matcher.english.md"
 DEFAULT_FIXTURE = ROOT / "examples" / "ir" / "eval_postings.jsonl"
 
 
@@ -45,7 +51,7 @@ class PostingVerdict:
 
     id: str
     title: str
-    expected: bool  # True = should surface (get a draft)
+    expected: bool  # True = should surface (on the list)
     actual: bool  # True = did surface
     why: str
 
@@ -106,9 +112,8 @@ def load_fixture(path: Path) -> list[dict[str, Any]]:
 def build_canned(postings: list[dict[str, Any]]) -> CannedModel:
     """CannedModel fed from the fixture's own _judge fields.
 
-    Classify responses carry each posting's id so the eval can trace
-    which postings the pipeline drafted. Draft responses are generic:
-    one per posting covers the worst case (everything passes).
+    Scoring responses carry each posting's id so the eval can trace
+    which postings the pipeline shortlisted.
     """
     scored = [
         ModelResult(
@@ -123,27 +128,7 @@ def build_canned(postings: list[dict[str, Any]]) -> CannedModel:
         )
         for p in postings
     ]
-    drafts = [
-        ModelResult({"to": "jobs@example.com", "subject": p["title"]}, 8, 4)
-        for p in postings
-    ]
-    return CannedModel({"classify_posting": scored, "draft_outreach": drafts})
-
-
-def surfaced_ids(model: CannedModel) -> set[str]:
-    """Which posting ids the pipeline drafted.
-
-    The executor passes each fanned item to the model inside the prompt
-    ("input: {...}"); the canned scored dicts carry the posting id, so
-    every draft_outreach call maps back to exactly one posting.
-    """
-    ids: set[str] = set()
-    for call in model.calls:
-        if call["op"] != "draft_outreach":
-            continue
-        payload = call["prompt"].split("input: ", 1)[1]
-        ids.add(json.loads(payload)["id"])
-    return ids
+    return CannedModel({"extract_scored": scored})
 
 
 def run_eval(fixture_path: Path) -> EvalReport:
@@ -155,19 +140,24 @@ def run_eval(fixture_path: Path) -> EvalReport:
             "spec fails check: "
             + "; ".join(f"{v.code} {v.message}" for v in violations)
         )
+    # Rebind knowledge to the fixture: bindings live outside the definition.
+    spec.knowledge[0].uri = f"fs://{fixture_path}"
+    threshold = float(read_params(ENGLISH_PATH.read_text())["score_threshold"])
     postings = load_fixture(fixture_path)
     model = build_canned(postings)
-    # Reject at the gate: the send drops, but the drafts (the shortlist)
-    # were already made — that is what the eval measures.
-    executor = Executor(
-        spec,
-        model,
-        op_impls={"fetch_boards": lambda _inputs: postings},
-        gate_io=AutoVerdict("reject"),
-    )
-    executor.run("daily_scan")
+    # The sink fans out per scored item (general fanout semantic); the impl
+    # accumulates and the host applies the shortlist filter after the run.
+    sunk: list[dict[str, Any]] = []
 
-    surfaced = surfaced_ids(model)
+    def _write_output(item: Any) -> dict[str, Any]:
+        sunk.append(item)
+        return {"ok": True}
+
+    executor = Executor(spec, model, op_impls={"write_output": _write_output})
+    receipt = executor.run("main")
+    assert receipt.status == "completed", f"eval run did not complete: {receipt.status}"
+
+    surfaced = {s["id"] for s in sunk if s["score"] > threshold and not s["excluded"]}
     return EvalReport(
         [
             PostingVerdict(

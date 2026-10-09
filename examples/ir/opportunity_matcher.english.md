@@ -6,10 +6,9 @@ from this file — never edited by hand.
 
 ## What it does
 
-Every morning, fetch today's job postings and find the ones worth
-David's time: daily-pay roles he could actually take. The scan ranks
-postings, drafts outreach for the good ones, and waits for David to
-approve before anything is sent.
+Every morning, fetch today's job postings, score each one for fit, and
+show the shortlist: the postings worth David's time. It's a list —
+nothing is drafted, nothing is sent, no approval step.
 
 ## Where it looks
 
@@ -33,20 +32,9 @@ tech skills, event work.
 
 ## How it decides
 
-Each posting is scored for fit from 0 to 1. Anything scoring above 0.7
-that isn't in an excluded category gets an outreach draft. The rest are
-dropped quietly — no draft, no send.
-
-## The human gate
-
-Nothing is sent without David. He reviews the drafts and decides per
-run: approve, edit, or reject. A rejection drops the send; the run still
-records what happened.
-
-## Budgets
-
-A run may spend at most 10000 tokens and 15 minutes of human time. If the
-token budget would be exceeded, the run suspends instead of spending more.
+Each posting is scored for fit from 0 to 1. The shortlist shows postings
+scoring above 0.7 that aren't in an excluded category. The run records
+every scoring, not just the shortlist.
 
 ## Machine-readable parameters
 
@@ -66,11 +54,5 @@ favored_categories: restaurant, grocery, stocking, packing, setup/teardown, cust
 daily_pay_required: true
 score_threshold: 0.7
 classify_prompt: job_fit_v1
-outreach_prompt: outreach_v1
-postings_source: fs://examples/ir/postings.jsonl
-exclusion_rules: kv://exclusion-rules
-gate_name: approval
-gate_verdicts: approve, edit, reject
-token_budget: 10000
-human_minutes_budget: 15
+postings_source: examples/ir/postings.jsonl
 ```

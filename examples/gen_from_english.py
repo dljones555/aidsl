@@ -1,36 +1,46 @@
-"""Regenerate the opportunity matcher IR from its English spec.
+"""Regenerate the opportunity matcher DSL from its English spec.
 
-PBI #38, story 3 (spike). The English file
-(examples/ir/opportunity_matcher.english.md) is the source of truth;
-this script is the deterministic stand-in for the inference step that,
-in production, reads the prose and drafts the definition.
+PBI #38, story 4 (revised 2026-10-08, David's direction). The .dsl is
+gone — it was an unspecified invention, neither .ai nor .ir. The chain:
 
-HONESTY NOTE — what this spike proves and what it does not:
+    English -> .ai text -> parse (aidsl.parser) -> lower (ir.lower_program)
+      -> check -> Spec -> .ir text
+
+No Python objects cross the seam. Delete the .ai file, re-run, and both
+artifacts come back byte-identical. There is no gate: the pipeline is a
+list (fetch postings, score each, show the shortlist).
+
+HONESTY NOTE — what this proves and what it does not:
 
 Proves:
-- Round-trip mechanics: a single English source file regenerates the
-  pipeline definition deterministically. Delete the generated artifact,
-  re-run, byte-identical IR.
+- The full chain is real text: a single English source regenerates a
+  committed .ai file; the real .ai parser (not Python objects) plus the
+  real lowering turn it into the checked IR. Delete the .ai, re-run,
+  byte-identical.
 - The English spec is load-bearing: editing a declared parameter (e.g.
-  the score threshold) changes the generated IR; rewording the prose
-  does not. The contract is enforced, not decorative.
-- Everything below the English is mechanical: parse, check, emit. No
-  judgment lives in the generator.
+  the score threshold) changes the .ai; rewording the prose does not.
+- Everything below the English is mechanical: render text, parse,
+  lower, check. No judgment lives in the generator.
 
 Does NOT prove:
-- That an LLM drafts a correct definition from English prose. That is
-  the real inference step and it needs live-model work with spend
-  approval (queued as a follow-up). Here a deterministic reader parses
-  the machine-readable ````spec-params```` block that the English file
-  carries alongside its prose.
-- That classifier policy (cities, excluded/favored categories) is fully
-  expressed in the IR. Those criteria are validated as present — the
-  generator fails loudly without them — but today they ride with the
-  classifier prompt/policy the ``classify_posting`` op names, not as IR
-  structure. Threading policy into the IR is future work.
+- That an LLM drafts a correct .ai from English prose. A deterministic
+  reader parses the machine-readable ```spec-params``` block; the
+  round-trip mechanics are identical.
+- That classifier policy (cities, excluded/favored categories,
+  daily-pay rule, score threshold) is expressed in the IR. Those are
+  validated present — the English spec is invalid without them — but
+  they ride with the classifier prompt, not as IR structure. The
+  threshold is rendered as a comment in the .ai so the artifact still
+  changes when the contract changes.
+- The shortlist filter (score > threshold, not excluded) is host
+  presentation policy, applied by the write_output implementation. The
+  definition scores every posting and records everything; the list
+  shows the fits. The threshold's single source of truth is the English
+  spec-params, read via read_params.
 
 Usage:
-    python3 examples/gen_from_english.py [--out PATH]
+    python3 examples/gen_from_english.py [--ai PATH] [--ir PATH]
+                                         [--english PATH]
 """
 
 from __future__ import annotations
@@ -38,32 +48,24 @@ from __future__ import annotations
 import argparse
 import re
 import sys
+import tempfile
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT))
 
-from ir import (
-    AuditRule,
-    Effect,
-    Field,
-    Gate,
-    Knowledge,
-    Op,
-    Plan,
-    PlanStep,
-    Spec,
-    TypeDef,
-    check,
-    dumps,
-)
+from aidsl.parser import parse
+from ir import Spec, check, dumps, lower_program
 
 ENGLISH_PATH = ROOT / "examples" / "ir" / "opportunity_matcher.english.md"
+AI_PATH = ROOT / "examples" / "ir" / "opportunity_matcher.ai"
+IR_PATH = ROOT / "examples" / "ir" / "opportunity_pipeline.ir"
 
-# Every key the contract requires. The IR-consuming subset is marked
-# below; the classifier-policy subset (cities, categories, daily-pay
-# rule) is validated for presence — the English spec is invalid without
-# it — even though the IR has no slot for it yet (see honesty note).
+# Every key the contract requires. The IR-consuming subset is the source,
+# prompt, and goal; the classifier-policy subset (cities, categories,
+# daily-pay rule, threshold) is validated for presence — the English spec
+# is invalid without it — even though the IR has no slot for it (see
+# honesty note).
 REQUIRED_KEYS = [
     "goal",
     "author",
@@ -73,18 +75,8 @@ REQUIRED_KEYS = [
     "daily_pay_required",
     "score_threshold",
     "classify_prompt",
-    "outreach_prompt",
     "postings_source",
-    "exclusion_rules",
-    "gate_name",
-    "gate_verdicts",
-    "token_budget",
-    "human_minutes_budget",
 ]
-
-# Declared capabilities of this pipeline (structural, not per-run policy).
-EFFECTS = ["model.complete", "human.review"]
-DENY = ["action.execute"]
 
 
 def read_params(english_text: str) -> dict[str, str]:
@@ -107,147 +99,116 @@ def read_params(english_text: str) -> dict[str, str]:
     return params
 
 
-def build_spec(p: dict[str, str]) -> Spec:
-    """Build the pipeline Spec from validated English parameters."""
-    threshold = p["score_threshold"]
-    tokens = int(p["token_budget"])
-    human_minutes = int(p["human_minutes_budget"])
-    gate = p["gate_name"]
-    return Spec(
-        name="opportunity_pipeline",
-        version="v1",
-        parent="none",
-        author=p["author"],
-        goal=p["goal"],
-        budget_tokens=tokens,
-        budget_human_minutes=human_minutes,
-        knowledge=[
-            Knowledge(name="boards", uri=p["postings_source"]),
-            Knowledge(name="exclusion_rules", uri=p["exclusion_rules"]),
-        ],
-        effects=list(EFFECTS),
-        deny=list(DENY),
-        types=[
-            TypeDef(
-                name="posting",
-                fields=[
-                    Field(name="title", type="text"),
-                    Field(name="pay", type="text"),
-                    Field(name="employer", type="text"),
-                    Field(name="url", type="text"),
-                ],
-            ),
-            TypeDef(
-                name="scored",
-                fields=[
-                    Field(name="title", type="text"),
-                    Field(name="pay", type="text"),
-                    Field(name="employer", type="text"),
-                    Field(name="url", type="text"),
-                    Field(name="score", type="float"),
-                    Field(name="excluded", type="bool"),
-                ],
-            ),
-            TypeDef(
-                name="draft",
-                fields=[
-                    Field(name="to", type="text"),
-                    Field(name="subject", type="text"),
-                    Field(name="body", type="text"),
-                ],
-            ),
-        ],
-        ops=[
-            Op(
-                name="fetch_boards",
-                params=[],
-                returns="posting[]",
-                effect=Effect.RECORDED,
-                capability="fs.read",
-            ),
-            Op(
-                name="classify_posting",
-                params=["posting"],
-                returns="scored",
-                effect=Effect.EXTERNAL,
-                capability="model.complete",
-                using=p["classify_prompt"],
-                using_kind="prompt",
-            ),
-            Op(
-                name="draft_outreach",
-                params=["scored"],
-                returns="draft",
-                effect=Effect.EXTERNAL,
-                capability="model.complete",
-                using=p["outreach_prompt"],
-                using_kind="prompt",
-            ),
-            Op(
-                name="send_outreach",
-                params=["draft"],
-                returns="receipt",
-                effect=Effect.EXTERNAL,
-                capability="action.execute",
-                gate=gate,
-            ),
-        ],
-        gates=[
-            Gate(name=gate, verdicts=[v.strip() for v in p["gate_verdicts"].split(",")])
-        ],
-        audits=[
-            AuditRule(
-                name="budget_tokens",
-                expr=f"tokens_used <= {tokens}",
-                action="suspend",
-            )
-        ],
-        plans=[
-            Plan(
-                name="daily_scan",
-                steps=[
-                    PlanStep(var="p", op="fetch_boards", args=[]),
-                    PlanStep(var="s", op="classify_posting", args=["p"]),
-                    PlanStep(
-                        var="d",
-                        op="draft_outreach",
-                        args=["s"],
-                        when=f"s.score > {threshold} and not s.excluded",
-                    ),
-                    PlanStep(var="r", op="send_outreach", args=["d"]),
-                ],
-            )
-        ],
-    )
+def render_ai(p: dict[str, str]) -> str:
+    """Render the .ai DSL text (v0.1 syntax) from validated parameters.
+
+    This is the inference stand-in's output: TEXT, exactly as a production
+    LLM would emit. Nothing downstream may use anything but this text —
+    the .ai parser is the only way in.
+    """
+    lines = [
+        "-- Opportunity matcher: daily scan to a ranked shortlist.",
+        "-- No gate: a list. Nothing is drafted, nothing is sent.",
+        "-- Generated from opportunity_matcher.english.md — do not hand-edit.",
+        (
+            "-- Classifier policy "
+            f"(score_threshold {p['score_threshold']}, cities, categories,"
+        ),
+        "-- daily-pay rule) rides with the classifier prompt; the English",
+        "-- spec-params are the contract. The shortlist filter",
+        f"-- (score > {p['score_threshold']}, not excluded) is host",
+        "-- presentation policy on the write_output step.",
+        "",
+        "DEFINE posting:",
+        "  title    TEXT",
+        "  pay      TEXT",
+        "  employer TEXT",
+        "  url      TEXT",
+        "",
+        "DEFINE scored:",
+        "  title    TEXT",
+        "  pay      TEXT",
+        "  employer TEXT",
+        "  url      TEXT",
+        "  score    NUMBER",
+        "  excluded YES/NO",
+        "",
+        f"FROM {p['postings_source']}",
+        f"EXTRACT scored PROMPT {p['classify_prompt']}",
+        "OUTPUT shortlist.json",
+        "",
+    ]
+    return "\n".join(lines)
 
 
-def generate_ir_text(english_text: str) -> str:
-    """English spec in, canonical IR text out. Fails loudly on violations."""
-    spec = build_spec(read_params(english_text))
+def generate_ai_text(english_text: str) -> str:
+    """English spec in, .ai text out. The text is the artifact."""
+    return render_ai(read_params(english_text))
+
+
+def load_ai(ai_path: Path) -> Spec:
+    """The parse seam: .ai file -> parse -> lower -> check -> Spec.
+
+    Fails loudly on parse errors, lowering problems, or checker
+    violations. Nothing downstream may construct the Spec by hand.
+    """
+    program = parse(str(ai_path))
+    spec = lower_program(program, name="opportunity_pipeline", version="v1")
+    # SAFETY SCOPE (documented; David's language-design call): the .ai v0.1
+    # grammar has no deny syntax, but IR-04 requires every gateless
+    # external op to sit under a deny list. A list pipeline may never
+    # execute actions, so the generator applies the standing scope
+    # "deny: action.execute" here, in the open. If .ai grows deny syntax,
+    # this moves into the text.
+    spec.deny = ["action.execute"]
     violations = check(spec)
     if violations:
         raise ValueError(
-            "generated spec failed the checker: "
+            "lowered spec failed the checker: "
             + "; ".join(f"{v.code} {v.message}" for v in violations)
         )
-    return dumps(spec)
+    return spec
+
+
+def generate_ir_text(ai_text: str) -> str:
+    """Lower .ai text all the way to .ir text.
+
+    Goes through a temp file because aidsl.parser.parse takes a path —
+    the parse still goes through the real parser; nothing is built by
+    hand on the way through.
+    """
+    with tempfile.NamedTemporaryFile("w", suffix=".ai", delete=False) as tmp:
+        tmp.write(ai_text)
+        tmp_path = Path(tmp.name)
+    try:
+        return dumps(load_ai(tmp_path))
+    finally:
+        tmp_path.unlink()
 
 
 def main() -> None:
-    """Regenerate the IR from the English spec; print or write it."""
+    """Regenerate the committed .ai and .ir from the English spec."""
     parser = argparse.ArgumentParser(
-        description="Regenerate opportunity_pipeline.ir from its English spec."
+        description="Regenerate opportunity_matcher.ai/.ir from English."
     )
-    parser.add_argument("--out", help="write IR text here instead of stdout")
+    parser.add_argument(
+        "--ai", default=str(AI_PATH), help="where to write the .ai text"
+    )
+    parser.add_argument(
+        "--ir", default=str(IR_PATH), help="where to write the .ir text"
+    )
     parser.add_argument(
         "--english", default=str(ENGLISH_PATH), help="English spec to read"
     )
     args = parser.parse_args()
-    text = generate_ir_text(Path(args.english).read_text())
-    if args.out:
-        Path(args.out).write_text(text)
-    else:
-        sys.stdout.write(text)
+    english_text = Path(args.english).read_text()
+    ai_text = generate_ai_text(english_text)
+    ai_path = Path(args.ai)
+    ai_path.write_text(ai_text)
+    load_ai(ai_path)  # the parser+lowering are the gate: invalid text never lands
+    ir_text = generate_ir_text(ai_text)
+    Path(args.ir).write_text(ir_text)
+    print(f"wrote {args.ai} and {args.ir} (checker clean)")
 
 
 if __name__ == "__main__":

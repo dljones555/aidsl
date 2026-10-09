@@ -25,6 +25,7 @@ import hashlib
 import json
 from collections.abc import Callable
 from dataclasses import dataclass, field
+from pathlib import Path
 from typing import Any
 
 from . import evaluator as ir_evaluator
@@ -172,6 +173,26 @@ def _topo_order(plan: Plan) -> list[PlanStep]:
     return ordered
 
 
+def _resolve_knowledge(uri: str) -> Any:
+    """Resolve a knowledge URI to its value, seeding the run env.
+
+    This is the piece _lower_source always promised ("the host binding
+    reads it") but the reference executor never implemented: a plan step
+    may name a knowledge entry as an argument (e.g. the extract step's
+    "<target>_source"), and the entry must resolve before the first step
+    runs. fs:// URIs are JSONL: one record per line. Paths resolve
+    against the current working directory.
+    """
+    if uri.startswith("fs://"):
+        path = uri[len("fs://") :]
+        return [
+            json.loads(line)
+            for line in Path(path).read_text(encoding="utf-8").splitlines()
+            if line.strip()
+        ]
+    raise ValueError(f"unsupported knowledge uri: {uri!r}")
+
+
 class Executor:
     def __init__(
         self,
@@ -207,6 +228,13 @@ class Executor:
         )
         env: dict[str, Any] = {}
 
+        # Knowledge seeds the env: a step may take a knowledge entry as an
+        # argument (the .ai lowering names it "<target>_source"), and it
+        # must resolve before the first step runs.
+        for k in self.spec.knowledge:
+            if k.name not in env:
+                env[k.name] = _resolve_knowledge(k.uri)
+
         # The reference executor stays sequential, but it follows the
         # depends_on DAG rather than listed order. Steps with no shared
         # dependencies are parallelizable by DAG-capable backends —
@@ -228,9 +256,7 @@ class Executor:
             # Cascade skip: a step whose dependency was skipped is skipped
             # too — no data, no run. Topo order guarantees the dependency
             # was already processed, so `skipped` is complete here.
-            blocked_by = next(
-                (d for d in step.depends_on if d in skipped), None
-            )
+            blocked_by = next((d for d in step.depends_on if d in skipped), None)
             if blocked_by is not None:
                 sr.skipped = True
                 sr.skip_reason = f"dependency '{blocked_by}' was skipped"

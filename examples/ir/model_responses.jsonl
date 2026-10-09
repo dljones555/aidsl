@@ -1,10 +1,6 @@
-{"op": "classify_posting", "data": {"title": "Line Cook — The Cannery", "pay": "$19/hr", "employer": "The Cannery Restaurant", "url": "u1", "score": 0.85, "excluded": false}, "tokens_in": 120, "tokens_out": 40}
-{"op": "classify_posting", "data": {"title": "Delivery Driver — Pizza Place", "pay": "$18/hr + tips", "employer": "Slice House", "url": "u2", "score": 0.4, "excluded": true}, "tokens_in": 120, "tokens_out": 40}
-{"op": "classify_posting", "data": {"title": "Grocery Stocker (Overnight)", "pay": "$20.50/hr", "employer": "Sprouts", "url": "u3", "score": 0.9, "excluded": false}, "tokens_in": 120, "tokens_out": 40}
-{"op": "classify_posting", "data": {"title": "Marketing Manager — DTC Brand", "pay": "$95k/yr", "employer": "GlowCo", "url": "u4", "score": 0.2, "excluded": true}, "tokens_in": 120, "tokens_out": 40}
-{"op": "classify_posting", "data": {"title": "Busser — Weekend Brunch", "pay": "$17/hr + tips", "employer": "Mama's Kitchen", "url": "u5", "score": 0.75, "excluded": false}, "tokens_in": 120, "tokens_out": 40}
-{"op": "classify_posting", "data": {"title": "Event Setup Crew", "pay": "$22/hr", "employer": "Coast Events", "url": "u6", "score": 0.8, "excluded": false}, "tokens_in": 120, "tokens_out": 40}
-{"op": "draft_outreach", "data": {"to": "jobs@cannery.example", "subject": "Line cook application", "body": "Hi, ..."}, "tokens_in": 100, "tokens_out": 60}
-{"op": "draft_outreach", "data": {"to": "jobs@sprouts.example", "subject": "Overnight stocker application", "body": "Hi, ..."}, "tokens_in": 100, "tokens_out": 60}
-{"op": "draft_outreach", "data": {"to": "jobs@mamas.example", "subject": "Busser application", "body": "Hi, ..."}, "tokens_in": 100, "tokens_out": 60}
-{"op": "draft_outreach", "data": {"to": "jobs@coast.example", "subject": "Event crew application", "body": "Hi, ..."}, "tokens_in": 100, "tokens_out": 60}
+{"op": "extract_scored", "data": {"title": "Line Cook — The Cannery", "pay": "$19/hr", "employer": "The Cannery Restaurant", "url": "u1", "score": 0.85, "excluded": false}, "tokens_in": 120, "tokens_out": 40}
+{"op": "extract_scored", "data": {"title": "Delivery Driver — Pizza Place", "pay": "$18/hr + tips", "employer": "Slice House", "url": "u2", "score": 0.4, "excluded": true}, "tokens_in": 120, "tokens_out": 40}
+{"op": "extract_scored", "data": {"title": "Grocery Stocker (Overnight)", "pay": "$20.50/hr", "employer": "Sprouts", "url": "u3", "score": 0.9, "excluded": false}, "tokens_in": 120, "tokens_out": 40}
+{"op": "extract_scored", "data": {"title": "Marketing Manager — DTC Brand", "pay": "$95k/yr", "employer": "GlowCo", "url": "u4", "score": 0.2, "excluded": true}, "tokens_in": 120, "tokens_out": 40}
+{"op": "extract_scored", "data": {"title": "Busser — Weekend Brunch", "pay": "$17/hr + tips", "employer": "Mama's Kitchen", "url": "u5", "score": 0.75, "excluded": false}, "tokens_in": 120, "tokens_out": 40}
+{"op": "extract_scored", "data": {"title": "Event Setup Crew", "pay": "$22/hr", "employer": "Coast Events", "url": "u6", "score": 0.8, "excluded": false}, "tokens_in": 120, "tokens_out": 40}

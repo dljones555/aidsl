@@ -79,7 +79,11 @@ def test_opportunity_pipeline_example_is_valid():
     spec = loads(path.read_text())
     assert spec.name == "opportunity_pipeline"
     assert check(spec) == []
-    # the old sketch marked the LLM match step pure; the checker is right —
+    # the scoring step uses a prompt; the checker is right —
     # a prompt means a model call means external.
-    classify = next(o for o in spec.ops if o.name == "classify_posting")
-    assert classify.effect == Effect.EXTERNAL
+    extract = next(o for o in spec.ops if o.name == "extract_scored")
+    assert extract.effect == Effect.EXTERNAL
+    assert extract.using == "job_fit_v1"
+    # no gate: it's a list; the deny list is the safety scope.
+    assert spec.gates == []
+    assert "action.execute" in spec.deny
