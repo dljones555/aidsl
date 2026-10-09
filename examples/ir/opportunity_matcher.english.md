@@ -6,35 +6,30 @@ from this file — never edited by hand.
 
 ## What it does
 
-Every morning, fetch today's job postings, score each one for fit, and
-show the shortlist: the postings worth David's time. It's a list —
-nothing is drafted, nothing is sent, no approval step.
+Every morning, check the job boards and show me the shortlist: the
+daily-pay jobs worth my time. Just a list — nothing drafted, nothing sent.
 
 ## Where it looks
 
-Job boards, read from the postings file. Only these cities count:
 Huntington Beach, Fountain Valley, Costa Mesa, Newport Beach, Santa Ana.
 Anywhere else is out, no matter how good the posting looks.
 
 ## What counts as a match
 
-A posting is worth surfacing only if it plausibly pays daily. A stated
-daily-pay program ("work today, get paid tomorrow", DailyPay, and the
-like) counts, and so does clear daily cash pay.
+It's got to plausibly pay daily — a daily-pay program ("work today, get
+paid tomorrow" and the like), or clear daily cash.
 
-These categories are never a match, even with daily pay attached:
-driving, mechanical/auto work, personal care or caregiving, marketing
-or advertising roles.
+Never a match, even with daily pay: driving, mechanical/auto work,
+personal care or caregiving, marketing or advertising roles.
 
-These are the kinds of work to favor: restaurant (server, busser, prep),
-grocery, stocking, packing, light setup and teardown, customer service,
-tech skills, event work.
+The kinds of work I like: restaurant (server, busser, prep), grocery,
+stocking, packing, light setup and teardown, customer service, tech
+skills, event work.
 
 ## How it decides
 
-Each posting is scored for fit from 0 to 1. The shortlist shows postings
-scoring above 0.7 that aren't in an excluded category. The run records
-every scoring, not just the shortlist.
+Score each posting 0 to 1 for fit. Show me the ones above 0.7 that aren't
+excluded. Record every scoring, not just the shortlist.
 
 ## Machine-readable parameters
 

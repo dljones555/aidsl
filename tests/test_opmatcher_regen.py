@@ -121,9 +121,10 @@ def test_missing_cities_fails_loudly(english_text: str):
 def test_prose_edits_dont_change_ai(english_text: str):
     """Rewording the human prose must never change the generated definition."""
     reworded = english_text.replace(
-        "score each one for fit, and\nshow the shortlist: the postings worth "
-        "David's time.",
-        "score each posting and show him the shortlist of fits.",
+        "Score each posting 0 to 1 for fit. Show me the ones above 0.7 that aren't\n"
+        "excluded.",
+        "Give every posting a fit score between 0 and 1; list the non-excluded "
+        "ones over 0.7.",
     )
     assert reworded != english_text  # the edit actually landed
     assert generate_ai_text(reworded) == AI_PATH.read_text()
